@@ -29,7 +29,7 @@ from src.mail import mail, create_message
 auth_router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 user_service = UserService()
-role_checker = RoleChecker(allowed_roles=["admin", "user"])
+role_checker = RoleChecker(allowed_roles=["admin", "driver", "passenger"])
 
 
 @auth_router.get("/me", dependencies=[Depends(role_checker)])
@@ -55,7 +55,8 @@ async def register(
         subject="Verify your email",
          body="Welcome to Taxi System! Your account has been created successfully."
     )
-    await mail.send_message(message)
+    if mail:
+        await mail.send_message(message)
 
     return {"message": "User created successfully. Check your email to verify your account."}
 
@@ -129,7 +130,8 @@ async def password_reset_request(email_data: PasswordResetRequestModel):
     email = email_data.email
     token = create_url_safe_token({"email": email})
     subject = "Reset Your Password"
-    await mail.send_message(create_message([email], subject, "HELLO"))
+    if mail:
+        await mail.send_message(create_message([email], subject, "HELLO"))
     return {"message": "Check your email for password reset instructions"}
 
 

@@ -1,7 +1,13 @@
 fastapi
+uvicorn[standard]
 sqlmodel
 passlib[bcrypt]
 bcrypt==4.3.0
 python-jose
 asyncpg
 redis
+python-dotenv
+PyJWT
+itsdangerous
+fastapi-mail
+celery

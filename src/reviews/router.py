@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.auth.utils import AccessTokenBearer, get_current_user
 from src.db.models import User
@@ -56,6 +56,8 @@ async def patch(
     current_user: User = Depends(get_current_user),
 ):
     review = await get_review(session, review_id)
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
 
     return await update_review(session, current_user, review, data)
 
@@ -72,5 +74,7 @@ async def remove(
     current_user: User = Depends(get_current_user),
 ):
     review = await get_review(session, review_id)
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
 
     await delete_review(session, current_user, review)
