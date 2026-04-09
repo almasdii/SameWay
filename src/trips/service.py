@@ -60,8 +60,6 @@ async def create_trip(session: AsyncSession, current_user: User, data: TripCreat
 async def get_trip(session: AsyncSession, trip_id: int) -> Trip | None:
     return await session.get(Trip, trip_id)
 
-
-
 async def list_trips(session: AsyncSession, limit: int, offset: int):
     stmt = select(Trip).limit(limit).offset(offset)
     result = await session.execute(stmt)

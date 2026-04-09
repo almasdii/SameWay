@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from src.mail import BASE_DIR
 from fastapi import FastAPI
 from src.users.router import router as users_router
 from src.db.session import create_db_and_tables
@@ -13,6 +13,11 @@ from src.reviews.router import router as reviews_router
 from src.errors.customErrors import register_error_handlers
 from src.auth.routes import auth_router
 from fastapi.security import HTTPBearer
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from src.middleware.logging import log_request
+from src.middleware.rate_limit import rate_limit_middleware
+from src.config import settings
 
 security = HTTPBearer()
 
@@ -20,6 +25,32 @@ app = FastAPI(
     title="TaxiSystem",
     swagger_ui_init_oauth=None
 )
+
+allow_origins=[
+    "http://localhost:3000",
+    "https://taxiSystem.com"
+]
+
+app.add_middleware(
+	    CORSMiddleware,
+    allow_origins=allow_origins,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+allowed_hosts=[
+    "localhost",
+    "127.0.0.1",
+    "taxiSystem.com"
+]
+
+app.add_middleware(
+	TrustedHostMiddleware,
+	allowed_hosts=allowed_hosts,
+)
+app.middleware("http")(rate_limit_middleware)
+app.middleware("http")(log_request)
 
 @app.on_event("startup")
 async def on_startup() -> None:

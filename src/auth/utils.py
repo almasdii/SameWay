@@ -13,6 +13,9 @@ from src.db.redis import token_in_blocklist
 from src.dependencies import get_session
 from sqlalchemy.ext.asyncio import  AsyncSession
 from src.users.service import UserService
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
+from fastapi import HTTPException, status
+from src.config import settings
 
 
 load_dotenv() 
@@ -97,3 +100,19 @@ async def get_current_user(
     user = await user_service.get_user_by_email(session, user_email)
 
     return user
+
+
+
+serializer = URLSafeTimedSerializer(secret_key=settings.JWT_SECRET, salt="email-configuration")
+
+def create_url_safe_token(data: dict, expiration=3600) -> str:
+    return serializer.dumps(data)
+
+def decode_url_safe_token(token: str, max_age=3600) -> dict:
+    try:
+        data = serializer.loads(token, max_age=max_age)
+        return data
+    except SignatureExpired:
+        raise HTTPException(status_code=400, detail="Token has expired")
+    except BadSignature:
+        raise HTTPException(status_code=400, detail="Invalid token")

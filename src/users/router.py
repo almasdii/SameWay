@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query, status
 from sqlmodel import select
 from src.errors.customErrors import UserNotFoundByEmail,AccessForbidden
-
+from src.mail import BASE_DIR        
 from src.db.models import User
 from src.dependencies import AsyncSessionDep,  pagination_params,allow_admin,allow_driver,allow_driver_or_passenger,allow_passenger
 from src.users.schema import UserCreateModel, UserRead, UserUpdate

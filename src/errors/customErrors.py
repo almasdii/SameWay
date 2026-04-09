@@ -415,6 +415,7 @@ def register_error_handlers(app: FastAPI):
 						},
 				),
 		)
+		
 
 		app.add_exception_handler(
     BookingOwnershipException,
