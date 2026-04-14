@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, status, HTTPException
 from sqlmodel import select
 from src.errors.customErrors import UserNotFoundByEmail,AccessForbidden
 from src.mail import BASE_DIR        
@@ -42,52 +42,56 @@ async def patch_me(
 ):
     return await user_service.update_user(session, current_user, data)
 
-from src.auth.utils import get_current_user
-
 @router.get("/me", response_model=UserRead, dependencies=[Depends(access_token)])
 async def me(current_user: User = Depends(get_current_user)):
-    print(current_user.email)
     return current_user
 
-@router.get("/search", response_model=list[UserRead])
+@router.get("/search", response_model=list[UserRead], dependencies=[Depends(access_token)])
 async def search(
+    session: AsyncSessionDep,
     fullname: str = Query(..., min_length=1),
-    details = Depends(access_token),
-    session: AsyncSessionDep = None,  
 ):
+    if not session:
+        raise HTTPException(status_code=500, detail="Database session not available")
+    
     like = f"%{fullname}%"
     stmt = select(User).where((User.username.ilike(like)) | (User.surname.ilike(like)))
     res = await session.execute(stmt)
     return list(res.scalars().all())
 
 
-@router.get("/{user_email}", response_model=UserRead,dependencies=[Depends(allow_driver_or_passenger),Depends(access_token)])
-async def read(user_email: str,  session: AsyncSessionDep):
-    user = await user_service.get_user_by_email(session,user_email)
+@router.get("/{user_email}", response_model=UserRead, dependencies=[Depends(access_token)])
+async def read(user_email: str, session: AsyncSessionDep, current_user: User = Depends(get_current_user)):
+    user = await user_service.get_user_by_email(session, user_email)
+    if current_user.email != user_email and current_user.role != "admin":
+        raise AccessForbidden()
     if not user:
         raise UserNotFoundByEmail()
     return user
 
-@router.patch("/{user_email}", response_model=UserRead,dependencies=[Depends(allow_admin)])
-async def patch(user_email: str, data: UserUpdate, session: AsyncSessionDep,current_user :User = Depends(get_current_user)):
-
+@router.patch("/{user_email}", response_model=UserRead, dependencies=[Depends(access_token)])
+async def patch(user_email: str, data: UserUpdate, session: AsyncSessionDep, current_user: User = Depends(get_current_user)):
+    user = await user_service.get_user_by_email(session, user_email)
     
-
-    user = await user_service.get_user_by_email(session,user_email)
-
     if not user:
         raise UserNotFoundByEmail()
+    
     if current_user.email != user_email and current_user.role != "admin":
-        raise AccessForbidden
+        raise AccessForbidden()
     
     return await user_service.update_user(session, user, data)
 
 
-@router.delete("/{user_email}", status_code=status.HTTP_204_NO_CONTENT,dependencies=[Depends(access_token),Depends(allow_admin)])
-async def remove(user_email: str, session: AsyncSessionDep):
-    user = await user_service.get_user_by_email(session,user_email)
+@router.delete("/{user_email}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(access_token)])
+async def remove(user_email: str, session: AsyncSessionDep, current_user: User = Depends(get_current_user)):
+    user = await user_service.get_user_by_email(session, user_email)
     if not user:
         raise UserNotFoundByEmail()
+    
+    # Only allow users to delete their own account or admin can delete anyone
+    if current_user.email != user_email and current_user.role != "admin":
+        raise AccessForbidden()
+    
     await user_service.delete_user(session, user)
     return None
 

@@ -55,6 +55,15 @@ async def get_active_car(session: AsyncSession, current_user: User) -> Car | Non
     return result.scalar_one_or_none()
 
 
+async def list_driver_cars(session: AsyncSession, current_user: User) -> list[Car]:
+    if current_user.role not in ["driver", "admin"]:
+        raise PassengerCannotManageCarException()
+
+    stmt = select(Car).where(Car.driver_id == current_user.uid)
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
+
+
 async def update_car(session: AsyncSession, current_user: User, car: Car, data: CarUpdate) -> Car:
     if current_user.role != "admin" and car.driver_id != current_user.uid:
         raise DriverCarOwnershipException()

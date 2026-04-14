@@ -10,3 +10,7 @@ env/
 .env
 .DS_Store
 Thumbs.db
+.env.docker
+*.pyc
+*.pyo
+alembic/__pycache__/

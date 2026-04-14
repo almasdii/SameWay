@@ -1,6 +1,6 @@
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import select
+from sqlmodel import select, func
 from uuid import UUID
 
 from src.db.models import (
@@ -13,6 +13,27 @@ from src.db.models import (
 )
 
 from src.reviews.schema import ReviewCreate, ReviewUpdate
+
+async def _aggregate_driver_rating(
+    session: AsyncSession,
+    driver_id: UUID,
+) -> None:
+    result = await session.execute(
+        select(func.avg(Review.rate)).where(
+            Review.reviewee_id == driver_id
+        )
+    )
+    avg_rating = result.scalar()
+    
+    if avg_rating is None:
+        avg_rating = 0.0
+    
+    user = await session.get(User, driver_id)
+    if user:
+        user.average_rating = float(avg_rating)
+        session.add(user)
+        await session.commit()
+
 async def _is_passenger_in_trip(
     session: AsyncSession,
     trip_id: int,
@@ -114,6 +135,8 @@ async def create_review(
     await session.commit()
     await session.refresh(review)
 
+    await _aggregate_driver_rating(session, data.reviewee_id)
+
     return review
 
 async def get_review(
@@ -155,6 +178,9 @@ async def update_review(
     await session.commit()
     await session.refresh(review)
 
+    if "rate" in payload:
+        await _aggregate_driver_rating(session, review.reviewee_id)
+
     return review
 
 async def delete_review(
@@ -169,6 +195,11 @@ async def delete_review(
             detail="Only reviewer can delete this review",
         )
 
+    reviewee_id = review.reviewee_id
+    
     await session.delete(review)
+    await session.commit()
+    
+    await _aggregate_driver_rating(session, reviewee_id)
 
     await session.commit()

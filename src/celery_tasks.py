@@ -1,12 +1,13 @@
 
 from celery import Celery
 from src.mail import mail, create_message
+from src.config import settings
 import asyncio
 
 celery_app = Celery(
     "tasks",
-    broker="redis://localhost:6379/0",
-    backend="redis://localhost:6379/0"
+    broker=settings.REDIS_URL,
+    backend=settings.REDIS_URL
 )
 
 @celery_app.task

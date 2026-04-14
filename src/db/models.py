@@ -59,6 +59,8 @@ class User(SQLModel, table=True):
     )
 
     created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
+    is_verified: bool = Field(default=False, nullable=False, index=True)
+    average_rating: float = Field(default=0.0, nullable=False, index=True)
 
     cars: list["Car"] = Relationship(
         back_populates="driver",

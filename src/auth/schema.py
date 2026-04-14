@@ -1,23 +1,20 @@
 
 from typing import List
+from pydantic import BaseModel, EmailStr
 
-from pydantic import BaseModel
 
 class EmailModel(BaseModel):
     addresses: List[str]
 
+
 class PasswordResetRequestModel(BaseModel):
-    email: str
+    email: EmailStr
+
 
 class PasswordResetConfirmModel(BaseModel):
     new_password: str
     confirm_new_password: str
     
-from pydantic import BaseModel
-
-class PasswordResetRequestModel(BaseModel):
-    email: str
-
-class PasswordResetConfirmModel(BaseModel):
-    new_password: str
-    confirm_new_password: str
+    def check_passwords_match(self):
+        if self.new_password != self.confirm_new_password:
+            raise ValueError("Passwords do not match")

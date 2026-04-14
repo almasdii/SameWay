@@ -20,11 +20,6 @@ from src.trips.service import (
 router = APIRouter(prefix="/trips", tags=["trips"])
 access_token = AccessTokenBearer()
 
-@router.post("", response_model=TripRead, status_code=status.HTTP_201_CREATED)
-async def create(data: TripCreate, session: AsyncSessionDep,current_user = Depends(get_current_user)):
-    return await create_trip(session,current_user ,data)
-
-
 @router.post(
     "",
     response_model=TripRead,
