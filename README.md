@@ -1,56 +1,97 @@
-# SameWay (TaxiSystem) — FastAPI backend
+# SameWay
 
-Backend для сервиса совместных поездок (carpooling): водители создают поездки, пассажиры бронируют места, оплачивают и оставляют отзывы.
+FastAPI backend for a carpooling service connecting drivers and passengers.
 
-## Требования
+## Problem statement
 
-- Python 3.11+ (рекомендуется)
-- PostgreSQL
-- Redis (нужен для rate limit и token blocklist; также используется Celery)
+Drivers need a way to publish rides and passengers need a way to book seats, pay securely, and leave feedback. The backend should manage authentication, bookings, payments, trips, and notifications while supporting PostgreSQL and Redis.
 
-## Быстрый старт
+## Features
 
-1) Создай виртуальное окружение и установи зависимости:
+- User registration and authentication
+- Trip creation and search
+- Booking management
+- Integrated payment flow
+- Reviews and ratings
+- Redis-based rate limiting and token revocation
+- Email notifications via Celery
+- Database migrations with Alembic
+
+## Installation
+
+1. Install Python 3.11+.
+2. Clone the repository.
+3. Create and activate a virtual environment:
 
 ```bash
 python -m venv .venv
 .\.venv\Scripts\activate
+```
+
+4. Install dependencies:
+
+```bash
 pip install -r requirements.txt
 ```
 
-2) Скопируй и заполни переменные окружения:
+5. Copy environment example and configure values:
 
 ```bash
 copy .env.example .env
 ```
 
-Минимально нужны: `DATABASE_URL`, `SECRET_KEY`, `ALGORITHM`, `REDIS_URL`.
+Required environment variables include:
+- `DATABASE_URL`
+- `SECRET_KEY`
+- `ALGORITHM`
+- `REDIS_URL`
 
-3) Запусти PostgreSQL и Redis локально.
+## Usage
 
-4) Запусти API:
+1. Start PostgreSQL and Redis.
+2. Run database migrations:
+
+```bash
+alembic upgrade head
+```
+
+3. Start the FastAPI server:
 
 ```bash
 uvicorn src.main:app --reload
 ```
 
-Проверка:
-- `GET /health` → `{ "status": "ok" }`
-- Swagger: `/docs`
+4. Open API documentation in your browser:
 
-## Почта (опционально)
+- `http://127.0.0.1:8000/docs`
 
-Если `MAIL_USERNAME` пустой, отправка писем автоматически отключается (эндпоинты не будут падать).
+5. Health check endpoint:
 
-## Celery (опционально)
+- `GET /health`
 
-Если хочешь отправлять email в фоне:
+### Optional email worker
+
+If you want background email delivery:
 
 ```bash
 celery -A src.celery_tasks.celery_app worker --loglevel=info
 ```
 
-## О проекте / требования
+## Screenshots
 
-Сценарии и требования описаны в `plan.md`.
+No screenshots available.
+
+## Technology stack
+
+- Python 3.11+
+- FastAPI
+- SQLAlchemy
+- PostgreSQL
+- Redis
+- Celery
+- Alembic
+
+## Notes
+
+Project plans and specifications are stored in `docs/plan.md` and `docs/spec.md`.
 
