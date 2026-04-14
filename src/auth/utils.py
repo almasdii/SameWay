@@ -1,21 +1,18 @@
-from datetime import datetime,timedelta
+from datetime import datetime, timedelta
 import uuid
 import logging
 import jwt
-from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, Request, status
 from dotenv import load_dotenv
-from jwt import PyJWTError
 from fastapi.security import HTTPBearer
-from src.config import Settings as settings
-from src.errors.customErrors import AccessTokenRequired,InvalidToken, RefreshTokenRequired
+
+from src.config import settings
+from src.errors.customErrors import AccessTokenRequired, InvalidToken, RefreshTokenRequired
 from src.db.redis import token_in_blocklist
-from src.dependencies import get_session
-from sqlalchemy.ext.asyncio import  AsyncSession
+from src.db.session import get_session
+from sqlalchemy.ext.asyncio import AsyncSession
 from src.users.service import UserService
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
-from fastapi import HTTPException, status
-from src.config import settings
 
 
 load_dotenv() 
@@ -53,7 +50,6 @@ class TokenBearer(HTTPBearer):
 		super(TokenBearer, self).__init__(auto_error=auto_error)
 
 	async def __call__(self, request: Request):
-		print("HEADERS:", request.headers)
 		creds = await super().__call__(request)
 
 		token = creds.credentials

@@ -30,7 +30,7 @@ from src.celery_tasks import send_email
 auth_router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 user_service = UserService()
-role_checker = RoleChecker(allowed_roles=["admin", "user"])
+role_checker = RoleChecker(allowed_roles=["admin", "driver", "passenger"])
 
 
 @auth_router.get("/me", dependencies=[Depends(role_checker)])
@@ -79,6 +79,8 @@ async def register(
         subject="Verify your email - Taxi System",
         body=email_body
     )
+    if mail:
+        await mail.send_message(message)
 
     return {"message": "User created successfully. Check your email to verify your account."}
 
@@ -181,21 +183,8 @@ async def password_reset_request(
     token = create_url_safe_token({"email": email})
     reset_link = f"http://localhost:8000/api/auth/password-reset-confirm/{token}"
     subject = "Reset Your Password"
-    body = f"""
-    Hello {user.username},
-    
-    Click the link below to reset your password:
-    {reset_link}
-    
-    This link expires in 1 hour.
-    
-    If you didn't request a password reset, please ignore this email.
-    """
-    send_email.delay(
-        recipients=[email],
-        subject=subject,
-        body=body
-    )
+    if mail:
+        await mail.send_message(create_message([email], subject, "HELLO"))
     return {"message": "Check your email for password reset instructions"}
 
 
