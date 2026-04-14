@@ -38,13 +38,18 @@ class UserService:
 
     async def search_users_by_fullname(self, session: AsyncSession, fullname: str) -> list[User]:
         like = f"%{fullname}%"
-        stmt = select(User).where((User.fullname.ilike(like)) | (User.surname.ilike(like)))
+        stmt = select(User).where((User.username.ilike(like)) | (User.surname.ilike(like)))
         res = await session.execute(stmt)
         return list(res.scalars().all())
 
 
     async def update_user(self, session: AsyncSession, user: User, data: UserUpdate) -> User:
         payload = data.model_dump(exclude_unset=True)
+        
+
+        if "password" in payload:
+            payload["hashed_password"] = hash_password(payload.pop("password"))
+        
         for k, v in payload.items():
             setattr(user, k, v)
 

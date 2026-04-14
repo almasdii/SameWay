@@ -8,7 +8,9 @@ from src.db.models import (
     Payment,
     PaymentStatus,
     User,
+    Trip,
 )
+from src.celery_tasks import send_email
 
 
 async def create_payment(
@@ -68,6 +70,46 @@ async def create_payment(
 
     await session.commit()
     await session.refresh(payment)
+
+    trip = await session.get(Trip, booking.trip_id)
+    driver = await session.get(User, trip.driver_id)
+    
+    send_email.delay(
+        recipients=[current_user.email],
+        subject="Payment Receipt - Taxi System",
+        body=f"""
+        Dear {current_user.username},
+        
+        Your payment has been successfully processed.
+        
+        Payment Details:
+        - Amount: ${data.amount}
+        - Booking ID: {booking.id}
+        - Trip: {trip.origin} -> {trip.destination}
+        - Driver: {driver.username}
+        - Status: Completed
+        
+        Thank you for using Taxi System!
+        """
+    )
+    
+    send_email.delay(
+        recipients=[driver.email],
+        subject="Payment Received - Taxi System",
+        body=f"""
+        Dear {driver.username},
+        
+        A passenger has completed payment for your trip.
+        
+        Payment Details:
+        - Amount: ${data.amount}
+        - Passenger: {current_user.username}
+        - Trip: {trip.origin} -> {trip.destination}
+        - Trip Time: {trip.start_time}
+        
+        Thank you for using Taxi System!
+        """
+    )
 
     return payment
 

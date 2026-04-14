@@ -4,7 +4,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from datetime import datetime, timedelta
 
 from src.users.service import UserService
-from src.users.schema import UserLoginModel, UserCreateModel
+from src.users.schema import UserLoginModel, UserCreateModel, UserUpdate
 from src.auth.utils import (
     RefreshTokenBearer,
     AccessTokenBearer,
@@ -25,6 +25,7 @@ from src.errors.customErrors import (
     UserNotFoundByEmail
 )
 from src.mail import mail, create_message
+from src.celery_tasks import send_email
 
 auth_router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -42,6 +43,7 @@ async def register(
     user_create: UserCreateModel,
     session: AsyncSession = Depends(get_session),
 ):
+    
     existing_user = await user_service.get_user_by_email(session, user_create.email)
     if existing_user:
         raise UserAlreadyExists()
@@ -49,11 +51,33 @@ async def register(
     new_user = await user_service.create_user(session, user_create)
 
     token = create_url_safe_token({"email": new_user.email})
-
-    message = create_message(
+    
+    verification_link = f"http://localhost:8000/auth/verify-email/{token}"
+    
+    email_body = f"""
+    <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="background-color: #f4f4f4; padding: 20px; border-radius: 5px;">
+                <h2>Welcome to Taxi System! </h2>
+                <p>Your account has been created successfully.</p>
+                <p>Please verify your email by clicking the button below:</p>
+                <div style="margin: 20px 0;">
+                    <a href="{verification_link}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
+                        Verify Email
+                    </a>
+                </div>
+                <p>Or copy and paste this link in your browser:</p>
+                <p><code>{verification_link}</code></p>
+                <p><small>This verification link expires in 1 hour.</small></p>
+            </div>
+        </body>
+    </html>
+    """
+    
+    send_email.delay(
         recipients=[new_user.email],
-        subject="Verify your email",
-         body="Welcome to Taxi System! Your account has been created successfully."
+        subject="Verify your email - Taxi System",
+        body=email_body
     )
     if mail:
         await mail.send_message(message)
@@ -62,15 +86,28 @@ async def register(
 
 @auth_router.get("/verify-email/{token}")
 async def verify_email(token: str, session: AsyncSession = Depends(get_session)):
-    token_data = decode_url_safe_token(token, max_age=3600)
+    try:
+        token_data = decode_url_safe_token(token, max_age=3600)
+    except Exception as e:
+        raise InvalidToken(detail=f"Token expired or invalid: {str(e)}")
+    
     email = token_data.get("email")
     if not email:
-        raise HTTPException(status_code=400, detail="Invalid token")
+        raise InvalidToken(detail="No email found in verification token")
+    
     user = await user_service.get_user_by_email(session, email)
     if not user:
         raise UserNotFoundByEmail()
-    await user_service.update_user(user, {"is_verified": True}, session)
-    return {"message": "Email verified successfully"}
+    
+    if user.is_verified:
+        return {"message": "Email already verified"}
+    
+    user.is_verified = True
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    
+    return {"message": "Email verified successfully! You can now log in."}
 
 
 @auth_router.post("/login")
@@ -80,6 +117,12 @@ async def login(user_login: UserLoginModel, session: AsyncSession = Depends(get_
     user = await user_service.get_user_by_email(session, email)
     if not user or not verify_password(password, user.hashed_password):
         raise InvalidCredentials()
+
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Please verify your email before logging in. Check your inbox for the verification link."
+        )
 
     user_data = {"email": user.email, "uid": str(user.uid), "roles": user.role}
 
@@ -126,9 +169,19 @@ async def logout(token_details: dict = Depends(AccessTokenBearer())):
 from src.auth.schema import PasswordResetRequestModel, PasswordResetConfirmModel
 
 @auth_router.post("/password-reset-request")
-async def password_reset_request(email_data: PasswordResetRequestModel):
+async def password_reset_request(
+    email_data: PasswordResetRequestModel,
+    session: AsyncSession = Depends(get_session)
+):
+    
     email = email_data.email
+    
+    user = await user_service.get_user_by_email(session, email)
+    if not user:
+        raise UserNotFoundByEmail()
+    
     token = create_url_safe_token({"email": email})
+    reset_link = f"http://localhost:8000/api/auth/password-reset-confirm/{token}"
     subject = "Reset Your Password"
     if mail:
         await mail.send_message(create_message([email], subject, "HELLO"))
@@ -143,17 +196,19 @@ async def password_reset_confirm(
 ):
     if passwords.new_password != passwords.confirm_new_password:
         raise HTTPException(status_code=400, detail="Passwords do not match")
+    if len(passwords.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
 
     token_data = decode_url_safe_token(token, max_age=3600)
     email = token_data.get("email")
     if not email:
-        raise HTTPException(status_code=400, detail="Invalid token")
+        raise HTTPException(status_code=400, detail="Invalid or expired token")
 
     user = await user_service.get_user_by_email(session, email)
     if not user:
         raise UserNotFoundByEmail()
 
     new_hash = hash_password(passwords.new_password)
-    await user_service.update_user(user, {"hashed_password": new_hash}, session)
+    await user_service.update_user(session, user, UserUpdate(hashed_password=new_hash))
 
     return {"message": "Password reset successfully"}

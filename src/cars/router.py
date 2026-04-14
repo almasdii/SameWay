@@ -11,6 +11,7 @@ from src.errors.customErrors import DriverCarOwnershipException,InvalidCarSeatsE
 from src.cars.service import (
     create_car,
     get_active_car,
+    list_driver_cars,
     update_car,
     delete_car,
 )
@@ -33,6 +34,19 @@ async def create(
     current_user: User = Depends(get_current_user),
 ):
     return await create_car(session, current_user, data)
+
+
+@router.get(
+    "",
+    response_model=list[CarRead],
+    dependencies=[Depends(access_token), Depends(allow_driver)],
+)
+async def list_all(
+    session: AsyncSessionDep,
+    current_user: User = Depends(get_current_user),
+):
+    """List all cars for the current driver"""
+    return await list_driver_cars(session, current_user)
 
 
 @router.get(

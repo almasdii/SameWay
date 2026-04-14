@@ -15,13 +15,13 @@ from pydantic import BaseModel, EmailStr, field_validator
 
 
 class UserLoginModel(BaseModel):
-		email: str = Field(max_length=20, min_length=2)
+		email: str = Field(max_length=54, min_length=2)
 		password: str = Field(min_length=3)
 
 class UserCreateModel(BaseModel):
 		username: str = Field(max_length=50, min_length=3)
 		surname: str = Field(max_length=50, min_length=3)
-		email: str = Field(max_length=20,min_length=2)
+		email: str = Field(max_length=54, min_length=2)
 		password: str = Field(min_length=3)
 		phone: str = Field(min_length=5, max_length=30)
 		role: UserRole = UserRole.passenger
@@ -35,11 +35,13 @@ class UserCreateModel(BaseModel):
 
 class UserUpdate(BaseModel):
 	username: Optional[str] = Field(default=None, min_length=3, max_length=50)
-	surname: Optional[str] = Field(max_length=50, min_length=3)
-	phone: Optional[str] = Field(min_length=5, max_length=30)
+	surname: Optional[str] = Field(default=None, max_length=50, min_length=3)
+	phone: Optional[str] = Field(default=None, min_length=5, max_length=30)
+	password: Optional[str] = Field(default=None, min_length=3)
 
 class UserRead(BaseModel):
 	username: str
 	surname: Optional[str]
 	phone: str
+	is_verified: bool
 	created_at: datetime

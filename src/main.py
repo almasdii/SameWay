@@ -10,6 +10,7 @@ from src.routePoints.router import router as routepoints_router
 from src.booking.router import router as bookings_router
 from src.payments.router import router as payments_router
 from src.reviews.router import router as reviews_router
+from src.support.router import support_router
 from src.errors.customErrors import register_error_handlers
 from src.auth.routes import auth_router
 from fastapi.security import HTTPBearer
@@ -32,8 +33,8 @@ allow_origins=[
 ]
 
 app.add_middleware(
-	    CORSMiddleware,
-    allow_origins=allow_origins,
+	CORSMiddleware,
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -71,4 +72,5 @@ app.include_router(routepoints_router)
 app.include_router(bookings_router)
 app.include_router(payments_router)
 app.include_router(reviews_router)
+app.include_router(support_router)
 app.include_router(auth_router)

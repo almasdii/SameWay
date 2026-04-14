@@ -5,6 +5,7 @@ from sqlmodel import select
 from src.db.models import Trip, Car, User
 from src.db.models import TripStatus
 from src.trips.schema import TripCreate, TripUpdate
+from src.celery_tasks import send_email
 
 from src.errors.customErrors import (
     DriverWithoutCarException,
@@ -53,6 +54,29 @@ async def create_trip(session: AsyncSession, current_user: User, data: TripCreat
     session.add(new_trip)
     await session.commit()
     await session.refresh(new_trip)
+
+    send_email.delay(
+        recipients=[current_user.email],
+        subject="Trip Created Successfully - Taxi System",
+        body=f"""
+        Dear {current_user.username},
+        
+        Your trip has been created successfully!
+        
+        Trip Details:
+        - Trip ID: {new_trip.id}
+        - Route: {new_trip.origin} -> {new_trip.destination}
+        - Departure Time: {new_trip.start_time}
+        - Car: {driver_car.model} ({driver_car.plate_number})
+        - Available Seats: {new_trip.available_seats}
+        - Price per Seat: ${new_trip.price_per_seat}
+        - Status: {new_trip.status}
+        
+        Passengers will start booking your trip shortly.
+        
+        Thank you for using Taxi System!
+        """
+    )
 
     return new_trip
 

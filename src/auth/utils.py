@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import uuid
+import logging
 import jwt
 from fastapi import Depends, HTTPException, Request, status
 from dotenv import load_dotenv

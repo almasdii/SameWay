@@ -15,19 +15,19 @@ class Settings:
         "DATABASE_URL",
         "postgresql+asyncpg://postgres:postgres@localhost:5432/taxi_system",
     )
-    JWT_SECRET: str = os.getenv("SECRET_KEY")
-    JWT_ALGORITHM: str = os.getenv("ALGORITHM")
-    REDIS_URL: str = os.getenv("REDIS_URL")
+    JWT_SECRET: str = os.getenv("SECRET_KEY", "your-super-secret-key-change-in-production")
+    JWT_ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
-    MAIL_USERNAME: str = os.getenv("MAIL_USERNAME")
-    MAIL_PASSWORD: str = os.getenv("MAIL_PASSWORD")
-    MAIL_FROM: str = os.getenv("MAIL_FROM")
-    MAIL_PORT: int = int(os.getenv("MAIL_PORT", 587))
-    MAIL_SERVER: str = os.getenv("MAIL_SERVER")
-    MAIL_FROM_NAME: str = os.getenv("MAIL_FROM_NAME")
-    MAIL_STARTTLS: bool = os.getenv("MAIL_STARTTLS", "True") == "True"
+    MAIL_USERNAME: str = os.getenv("MAIL_USERNAME", "test@example.com")
+    MAIL_PASSWORD: str = os.getenv("MAIL_PASSWORD", "test")
+    MAIL_FROM: str = os.getenv("MAIL_FROM", "noreply@taxisystem.com")
+    MAIL_PORT: int = int(os.getenv("MAIL_PORT", "1025"))
+    MAIL_SERVER: str = os.getenv("MAIL_SERVER", "mailhog")
+    MAIL_FROM_NAME: str = os.getenv("MAIL_FROM_NAME", "Taxi System")
+    MAIL_STARTTLS: bool = os.getenv("MAIL_STARTTLS", "False") == "True"
     MAIL_SSL_TLS: bool = os.getenv("MAIL_SSL_TLS", "False") == "True"
     USE_CREDENTIALS: bool = os.getenv("USE_CREDENTIALS", "True") == "True"
-    VALIDATE_CERTS: bool = os.getenv("VALIDATE_CERTS", "True") == "True"
+    VALIDATE_CERTS: bool = os.getenv("VALIDATE_CERTS", "False") == "True"
     
 settings = Settings()
