@@ -27,16 +27,12 @@ app = FastAPI(
     swagger_ui_init_oauth=None
 )
 
-allow_origins=[
-    "http://localhost:3000",
-    "https://taxiSystem.com"
-]
-
 app.add_middleware(
 	CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.ALLOWED_ORIGINS.split(","),
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_credentials=True,
 )
 
 

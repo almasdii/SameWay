@@ -24,8 +24,8 @@ from src.errors.customErrors import (
     InvalidCredentials,
     UserNotFoundByEmail
 )
-from src.mail import mail, create_message
 from src.celery_tasks import send_email
+from src.config import settings
 
 auth_router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -52,7 +52,7 @@ async def register(
 
     token = create_url_safe_token({"email": new_user.email})
     
-    verification_link = f"http://localhost:8000/auth/verify-email/{token}"
+    verification_link = f"{settings.BASE_URL}/auth/verify-email/{token}"
     
     email_body = f"""
     <html>
@@ -79,8 +79,6 @@ async def register(
         subject="Verify your email - Taxi System",
         body=email_body
     )
-    if mail:
-        await mail.send_message(message)
 
     return {"message": "User created successfully. Check your email to verify your account."}
 
@@ -181,10 +179,32 @@ async def password_reset_request(
         raise UserNotFoundByEmail()
     
     token = create_url_safe_token({"email": email})
-    reset_link = f"http://localhost:8000/api/auth/password-reset-confirm/{token}"
-    subject = "Reset Your Password"
-    if mail:
-        await mail.send_message(create_message([email], subject, "HELLO"))
+    reset_link = f"{settings.BASE_URL}/auth/password-reset-confirm/{token}"
+
+    send_email.delay(
+        recipients=[email],
+        subject="Reset Your Password - Taxi System",
+        body=f"""
+        <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <div style="background-color: #f4f4f4; padding: 20px; border-radius: 5px;">
+                    <h2>Password Reset Request</h2>
+                    <p>We received a request to reset your password.</p>
+                    <p>Click the button below to set a new password:</p>
+                    <div style="margin: 20px 0;">
+                        <a href="{reset_link}" style="background-color: #dc3545; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
+                            Reset Password
+                        </a>
+                    </div>
+                    <p>Or copy and paste this link in your browser:</p>
+                    <p><code>{reset_link}</code></p>
+                    <p><small>This link expires in 1 hour. If you did not request a password reset, ignore this email.</small></p>
+                </div>
+            </body>
+        </html>
+        """
+    )
+
     return {"message": "Check your email for password reset instructions"}
 
 
