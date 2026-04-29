@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime 
 from src.db.models import UserRole 
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 
 
 
@@ -40,6 +40,8 @@ class UserUpdate(BaseModel):
 	password: Optional[str] = Field(default=None, min_length=3)
 
 class UserRead(BaseModel):
+	model_config = ConfigDict(from_attributes=True)
+
 	username: str
 	surname: Optional[str]
 	phone: str

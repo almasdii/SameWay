@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 from sqlmodel import SQLModel
 from src.db.models import RoutePointType
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class RoutePointBase(BaseModel):
@@ -23,6 +23,8 @@ class RoutePointUpdate(BaseModel):
     type: Optional[RoutePointType] = None
 
 class RoutePointRead(RoutePointBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     trip_id: int
     created_at: datetime

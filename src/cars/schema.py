@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from uuid import UUID
 
 from sqlmodel import SQLModel, Field
@@ -38,6 +38,8 @@ class CarUpdate(BaseModel):
 
 
 class CarRead(CarBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     driver_id: UUID
     is_active: bool
