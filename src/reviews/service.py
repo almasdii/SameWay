@@ -78,7 +78,7 @@ async def create_review(
     reviewer = await session.get(User, reviewer_id)
     reviewee = await session.get(User, data.reviewee_id)
 
-    if not reviewer or not reviewee:
+    if not reviewee:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
@@ -160,12 +160,12 @@ async def list_reviews_about_user(
 
 async def update_review(
     session: AsyncSession,
+    current_user: User,
     review: Review,
     data: ReviewUpdate,
-    editor_id: UUID,
 ) -> Review:
 
-    if editor_id != review.reviewer_id:
+    if current_user.uid != review.reviewer_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only reviewer can update this review",
@@ -186,11 +186,11 @@ async def update_review(
 
 async def delete_review(
     session: AsyncSession,
+    current_user: User,
     review: Review,
-    deleter_id: UUID,
 ) -> None:
 
-    if deleter_id != review.reviewer_id:
+    if current_user.uid != review.reviewer_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only reviewer can delete this review",
