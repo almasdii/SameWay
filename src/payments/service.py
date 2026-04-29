@@ -33,25 +33,22 @@ async def create_payment(
             detail="You cannot pay for another user's booking",
         )
 
-    if booking.status != BookingStatus.confirmed:
+    if booking.status == BookingStatus.cancelled:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Booking is not active",
+            detail="Booking is cancelled",
         )
 
-    res = await session.execute(
+    existing = await session.execute(
         select(Payment).where(
             Payment.booking_id == data.booking_id,
-            Payment.status == PaymentStatus.completed,
+            Payment.status.in_([PaymentStatus.pending, PaymentStatus.completed]),
         )
     )
-
-    existing = res.scalar_one_or_none()
-
-    if existing:
+    if existing.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Booking already paid",
+            detail="A pending or completed payment already exists for this booking",
         )
 
     if data.amount <= 0:
@@ -63,52 +60,113 @@ async def create_payment(
     payment = Payment(
         booking_id=data.booking_id,
         amount=data.amount,
-        status=PaymentStatus.completed,
+        status=PaymentStatus.pending,
     )
 
     session.add(payment)
-
     await session.commit()
     await session.refresh(payment)
 
+    return payment
+
+
+async def confirm_payment(
+    session: AsyncSession,
+    current_user: User,
+    payment_id: int,
+) -> Payment:
+
+    payment = await session.get(Payment, payment_id)
+    if not payment:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payment not found")
+
+    if payment.status != PaymentStatus.pending:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Payment is already {payment.status}",
+        )
+
+    booking = await session.get(Booking, payment.booking_id)
     trip = await session.get(Trip, booking.trip_id)
-    driver = await session.get(User, trip.driver_id)
-    
+
+    if trip.driver_id != current_user.uid:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the trip driver can confirm payment",
+        )
+
+    payment.status = PaymentStatus.completed
+    session.add(payment)
+    await session.commit()
+    await session.refresh(payment)
+
+    passenger = await session.get(User, booking.passenger_id)
     send_email.delay(
-        recipients=[current_user.email],
-        subject="Payment Receipt - Taxi System",
+        recipients=[passenger.email],
+        subject="Payment Confirmed - Taxi System",
         body=f"""
-        Dear {current_user.username},
-        
-        Your payment has been successfully processed.
-        
+        Dear {passenger.username},
+
+        Your payment for booking #{booking.id} has been confirmed by the driver.
+
         Payment Details:
-        - Amount: ${data.amount}
-        - Booking ID: {booking.id}
+        - Payment ID: #{payment.id}
+        - Amount: ${payment.amount}
         - Trip: {trip.origin} -> {trip.destination}
-        - Driver: {driver.username}
         - Status: Completed
-        
+
         Thank you for using Taxi System!
-        """
+        """,
     )
-    
+
+    return payment
+
+
+async def fail_payment(
+    session: AsyncSession,
+    current_user: User,
+    payment_id: int,
+) -> Payment:
+
+    payment = await session.get(Payment, payment_id)
+    if not payment:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payment not found")
+
+    if payment.status != PaymentStatus.pending:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Payment is already {payment.status}",
+        )
+
+    booking = await session.get(Booking, payment.booking_id)
+    trip = await session.get(Trip, booking.trip_id)
+
+    if trip.driver_id != current_user.uid:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the trip driver can mark payment as failed",
+        )
+
+    payment.status = PaymentStatus.failed
+    session.add(payment)
+    await session.commit()
+    await session.refresh(payment)
+
+    passenger = await session.get(User, booking.passenger_id)
     send_email.delay(
-        recipients=[driver.email],
-        subject="Payment Received - Taxi System",
+        recipients=[passenger.email],
+        subject="Payment Failed - Taxi System",
         body=f"""
-        Dear {driver.username},
-        
-        A passenger has completed payment for your trip.
-        
-        Payment Details:
-        - Amount: ${data.amount}
-        - Passenger: {current_user.username}
-        - Trip: {trip.origin} -> {trip.destination}
-        - Trip Time: {trip.start_time}
-        
-        Thank you for using Taxi System!
-        """
+        Dear {passenger.username},
+
+        Your payment for booking #{booking.id} has been marked as failed.
+
+        Please contact the driver or support for assistance.
+
+        Trip: {trip.origin} -> {trip.destination}
+
+        Taxi System Support Team
+        """,
     )
 
     return payment
@@ -137,6 +195,7 @@ async def get_payment(
         )
 
     return payment
+
 
 async def list_payments(
     session: AsyncSession,
