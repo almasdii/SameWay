@@ -21,7 +21,7 @@ from src.errors.customErrors import (
 
 async def create_trip(session: AsyncSession, current_user: User, data: TripCreate) -> Trip:
 
-    stmt = select(Car).where(Car.driver_id == current_user.uid)
+    stmt = select(Car).where(Car.driver_id == current_user.uid, Car.is_active == True)
     result = await session.execute(stmt)
     driver_car = result.scalars().first()
 
@@ -167,13 +167,33 @@ async def mark_trip_completed(session: AsyncSession, current_user: User, trip: T
 async def search_trips_by_routepoints(session: AsyncSession, from_location: str, to_location: str):
 
     from src.db.models import RoutePoint
+    from sqlalchemy import exists, and_
+
+    pickup_stop = (
+        select(RoutePoint.id)
+        .where(
+            RoutePoint.trip_id == Trip.id,
+            RoutePoint.location.ilike(f"%{from_location}%"),
+        )
+        .correlate(Trip)
+    )
+
+    dropoff_stop = (
+        select(RoutePoint.id)
+        .where(
+            RoutePoint.trip_id == Trip.id,
+            RoutePoint.location.ilike(f"%{to_location}%"),
+        )
+        .correlate(Trip)
+    )
 
     stmt = (
         select(Trip)
-        .join(RoutePoint)
-        .where(RoutePoint.location.ilike(f"%{from_location}%"))
-        .where(RoutePoint.location.ilike(f"%{to_location}%"))
-        .where(Trip.status == TripStatus.planned)
+        .where(
+            Trip.status == TripStatus.planned,
+            exists(pickup_stop),
+            exists(dropoff_stop),
+        )
     )
 
     result = await session.execute(stmt)
