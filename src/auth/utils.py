@@ -53,7 +53,6 @@ class TokenBearer(HTTPBearer):
 		super(TokenBearer, self).__init__(auto_error=auto_error)
 
 	async def __call__(self, request: Request):
-		print("HEADERS:", request.headers)
 		creds = await super().__call__(request)
 
 		token = creds.credentials

@@ -51,10 +51,11 @@ async def _is_passenger_in_trip(
     return res.scalar_one_or_none() is not None
 async def create_review(
     session: AsyncSession,
+    reviewer_id: UUID,
     data: ReviewCreate,
 ) -> Review:
 
-    if data.reviewer_id == data.reviewee_id:
+    if reviewer_id == data.reviewee_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Reviewer and reviewee must be different",
@@ -74,7 +75,7 @@ async def create_review(
             detail="Trip must be completed to leave a review",
         )
 
-    reviewer = await session.get(User, data.reviewer_id)
+    reviewer = await session.get(User, reviewer_id)
     reviewee = await session.get(User, data.reviewee_id)
 
     if not reviewer or not reviewee:
@@ -83,9 +84,9 @@ async def create_review(
             detail="User not found",
         )
 
-    reviewer_is_driver = trip.driver_id == data.reviewer_id
+    reviewer_is_driver = trip.driver_id == reviewer_id
     reviewer_is_passenger = await _is_passenger_in_trip(
-        session, trip.id, data.reviewer_id
+        session, trip.id, reviewer_id
     )
 
     if not (reviewer_is_driver or reviewer_is_passenger):
@@ -117,7 +118,7 @@ async def create_review(
     res = await session.execute(
         select(Review).where(
             Review.trip_id == data.trip_id,
-            Review.reviewer_id == data.reviewer_id,
+            Review.reviewer_id == reviewer_id,
             Review.reviewee_id == data.reviewee_id,
         )
     )
@@ -128,7 +129,7 @@ async def create_review(
             detail="Review already exists",
         )
 
-    review = Review(**data.model_dump())
+    review = Review(**data.model_dump(), reviewer_id=reviewer_id)
 
     session.add(review)
 
@@ -199,7 +200,5 @@ async def delete_review(
     
     await session.delete(review)
     await session.commit()
-    
-    await _aggregate_driver_rating(session, reviewee_id)
 
-    await session.commit()
+    await _aggregate_driver_rating(session, reviewee_id)
