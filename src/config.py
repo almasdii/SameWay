@@ -29,5 +29,9 @@ class Settings:
     MAIL_SSL_TLS: bool = os.getenv("MAIL_SSL_TLS", "False") == "True"
     USE_CREDENTIALS: bool = os.getenv("USE_CREDENTIALS", "True") == "True"
     VALIDATE_CERTS: bool = os.getenv("VALIDATE_CERTS", "False") == "True"
-    
+
+    BASE_URL: str = os.getenv("BASE_URL", "http://localhost:8000")
+    SUPPORT_EMAIL: str = os.getenv("SUPPORT_EMAIL", "support@taxisystem.com")
+    ALLOWED_ORIGINS: str = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000")
+
 settings = Settings()

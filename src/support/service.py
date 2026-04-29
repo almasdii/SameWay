@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.celery_tasks import send_email
+from src.config import settings
 from src.db.models import SupportRequest
 from src.support.schema import SupportRequestCreate
 
@@ -46,7 +47,7 @@ async def create_support_request(
     )
 
     send_email.delay(
-        recipients=["support@taxisystem.com"],
+        recipients=[settings.SUPPORT_EMAIL],
         subject=f"[#{request.id}] New Support Request: {data.subject}",
         body=f"""
         New support request received!

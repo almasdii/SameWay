@@ -9,8 +9,8 @@ from src.auth.security import hash_password
 
 class UserService:
     async def create_user(self, session: AsyncSession, data: UserCreateModel) -> User:
-        passwordd = data.password
-        hashPassword = hash_password(passwordd)
+        password = data.password
+        hashPassword = hash_password(password)
         user = User(
             email=data.email,
             username=data.username,
