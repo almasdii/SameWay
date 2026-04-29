@@ -12,6 +12,7 @@ from enum import Enum
 
 class TripStatus(str, Enum):
     planned = "planned"
+    in_progress = "in_progress"
     completed = "completed"
     cancelled = "cancelled"
 
@@ -390,3 +391,15 @@ class Review(SQLModel, table=True):
         back_populates="reviews",
         sa_relationship_kwargs={"lazy": "selectin"},
     )
+
+
+class SupportRequest(SQLModel, table=True):
+    __tablename__ = "support_requests"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    email: str = Field(nullable=False, index=True)
+    subject: str = Field(min_length=5, max_length=200, nullable=False)
+    message: str = Field(min_length=10, max_length=2000, nullable=False)
+    category: str = Field(nullable=False)
+    status: str = Field(default="new", nullable=False)
+    created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)

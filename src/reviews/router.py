@@ -59,7 +59,7 @@ async def patch(
     if not review:
         raise HTTPException(status_code=404, detail="Review not found")
 
-    return await update_review(session, review, data, current_user.uid)
+    return await update_review(session, current_user, review, data)
 
 
 
@@ -77,4 +77,4 @@ async def remove(
     if not review:
         raise HTTPException(status_code=404, detail="Review not found")
 
-    await delete_review(session, review, current_user.uid)
+    await delete_review(session, current_user, review)

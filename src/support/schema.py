@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, ConfigDict, Field, EmailStr
 from typing import Optional
 from datetime import datetime
 
@@ -11,6 +11,8 @@ class SupportRequestCreate(BaseModel):
 
 
 class SupportRequestRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: Optional[int] = None
     email: str
     subject: str

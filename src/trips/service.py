@@ -17,8 +17,6 @@ from src.errors.customErrors import (
     TripAlreadyCompletedException,
 )
 
-
-
 async def create_trip(session: AsyncSession, current_user: User, data: TripCreate) -> Trip:
 
     stmt = select(Car).where(Car.driver_id == current_user.uid, Car.is_active == True)
@@ -140,12 +138,27 @@ async def delete_trip(session: AsyncSession, current_user: User, trip: Trip):
     if trip.driver_id != current_user.uid:
         raise DriverTripOwnershipException()
 
-    if trip.status == TripStatus.completed:
+    if trip.status in (TripStatus.in_progress, TripStatus.completed):
         raise TripAlreadyCompletedException()
 
     await session.delete(trip)
     await session.commit()
 
+
+async def mark_trip_in_progress(session: AsyncSession, current_user: User, trip: Trip) -> Trip:
+
+    if trip.driver_id != current_user.uid:
+        raise DriverTripOwnershipException()
+
+    if trip.status != TripStatus.planned:
+        raise TripAlreadyStartedException()
+
+    trip.status = TripStatus.in_progress
+
+    await session.commit()
+    await session.refresh(trip)
+
+    return trip
 
 
 async def mark_trip_completed(session: AsyncSession, current_user: User, trip: Trip) -> Trip:
