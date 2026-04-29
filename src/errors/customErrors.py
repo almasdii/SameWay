@@ -62,10 +62,8 @@ class InvalidRoutePointTimeException(Exception):
     pass
 class RoutePointNotFoundException(Exception):
     pass
-class TripAlreadyStartedException(Exception):
-    pass
 class RoutePointOrderConflictException(Exception):
-	pass
+    pass
 
 class InvalidRoutePointsException(UserException):
     pass
@@ -368,28 +366,6 @@ def register_error_handlers(app: FastAPI):
         initial_detail={
             "message": "Pickup route point must come before dropoff route point",
             "error_code": "pickup_after_dropoff",
-						},
-				),
-		)
-
-		app.add_exception_handler(
-    PickupAfterDropoffException,
-    create_exception_handler(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        initial_detail={
-            "message": "Pickup route point must come before dropoff route point",
-            "error_code": "pickup_after_dropoff",
-						},
-				),
-		)
-
-		app.add_exception_handler(
-    NoSeatsAvailableException,
-    create_exception_handler(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        initial_detail={
-            "message": "No seats available for this trip",
-            "error_code": "no_seats_available",
 						},
 				),
 		)
