@@ -18,7 +18,8 @@ fastapi-mail
 alembic
 pydantic-settings
 python-dotenv
-PyJWT
-itsdangerous
-fastapi-mail
-celery
+
+# testing
+pytest
+pytest-asyncio
+httpx
