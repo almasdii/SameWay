@@ -228,7 +228,8 @@ async def password_reset_confirm(
     if not user:
         raise UserNotFoundByEmail()
 
-    new_hash = hash_password(passwords.new_password)
-    await user_service.update_user(session, user, UserUpdate(hashed_password=new_hash))
+    user.hashed_password = hash_password(passwords.new_password)
+    session.add(user)
+    await session.commit()
 
     return {"message": "Password reset successfully"}

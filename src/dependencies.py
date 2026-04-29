@@ -1,16 +1,14 @@
 from __future__ import annotations
 
-from typing import Annotated, Any, Type, TypeVar
-from src.mail import BASE_DIR
+from typing import Annotated, Any, List, Type, TypeVar
 
-from fastapi import Depends, HTTPException,status
+from fastapi import Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import SQLModel
 from src.db.session import get_session
 
 from src.auth.utils import get_current_user
 from src.db.models import User
-from typing import List
 
 AsyncSessionDep = Annotated[AsyncSession, Depends(get_session)]
 
