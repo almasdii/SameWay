@@ -18,6 +18,7 @@ from src.errors.customErrors import (
     InvalidRoutePointsException,
     PickupAfterDropoffException,
     TripAlreadyCompletedException,
+    TripAlreadyStartedException,
     NoSeatsAvailableException,
     PassengerOwnTripException,
     DuplicateBookingException,
@@ -165,6 +166,12 @@ async def cancel_booking(
 
         if not trip:
             raise TripNotFoundException()
+
+        if trip.status == TripStatus.in_progress:
+            raise TripAlreadyStartedException()
+
+        if trip.status == TripStatus.completed:
+            raise TripAlreadyCompletedException()
 
         booking.status = BookingStatus.cancelled
         trip.available_seats += 1

@@ -34,7 +34,7 @@ async def add_route_point(
     if trip.start_time <= datetime.utcnow():
         raise TripAlreadyStartedException()
 
-    if data.time > trip.start_time:
+    if data.time < trip.start_time:
         raise InvalidRoutePointTimeException()
 
     stmt = select(RoutePoint).where(
@@ -126,7 +126,7 @@ async def update_route_point(
 
     if "time" in payload:
 
-        if payload["time"] > trip.start_time:
+        if payload["time"] < trip.start_time:
             raise InvalidRoutePointTimeException()
 
     for key, value in payload.items():

@@ -13,6 +13,7 @@ from src.trips.service import (
     list_available_trips,
     update_trip,
     delete_trip,
+    mark_trip_in_progress,
     mark_trip_completed,
     search_trips_by_routepoints,
 )
@@ -86,6 +87,20 @@ async def remove(
 ):
     trip = await get_or_404(Trip, trip_id, session)
     await delete_trip(session, current_user, trip)
+
+
+@router.post(
+    "/{trip_id}/start",
+    response_model=TripRead,
+    dependencies=[Depends(access_token), Depends(allow_driver)],
+)
+async def start(
+    trip_id: int,
+    session: AsyncSessionDep,
+    current_user: User = Depends(get_current_user),
+):
+    trip = await get_or_404(Trip, trip_id, session)
+    return await mark_trip_in_progress(session, current_user, trip)
 
 
 @router.post(
