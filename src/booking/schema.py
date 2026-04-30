@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Optional
+from uuid import UUID
 from sqlmodel import SQLModel
 from pydantic import BaseModel, ConfigDict
 from src.db.models import BookingStatus
@@ -19,7 +20,7 @@ class BookingRead(BookingBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    passenger_id: str
+    passenger_id: UUID
     status: BookingStatus
     created_at: datetime
 

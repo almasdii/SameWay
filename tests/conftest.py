@@ -1,4 +1,6 @@
 import asyncio
+import os
+import sys
 import uuid
 from datetime import datetime, timedelta
 from typing import AsyncGenerator
@@ -9,6 +11,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool
 from sqlmodel import SQLModel
 
 from src.auth.security import hash_password
@@ -17,38 +20,49 @@ from src.db.models import Car, RoutePoint, RoutePointType, Trip, TripStatus, Use
 from src.db.session import get_session
 from src.main import app
 
-TEST_DB_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/taxi_system_test"
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-test_engine = create_async_engine(TEST_DB_URL, echo=False, connect_args={"ssl": False})
-TestSessionLocal = sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
+# File-based SQLite + NullPool: each session/request gets its own connection,
+# avoiding the "transaction already begun" conflict when services call session.begin()
+_TEST_DB = os.path.join(os.path.dirname(__file__), "test.db")
+_TEST_DB_URL = f"sqlite+aiosqlite:///{_TEST_DB}"
 
+_engine = create_async_engine(
+    _TEST_DB_URL,
+    connect_args={"check_same_thread": False},
+    poolclass=NullPool,
+)
 
-@pytest.fixture(scope="session")
-def event_loop():
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
+_session_factory = sessionmaker(_engine, class_=AsyncSession, expire_on_commit=False)
 
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
 async def setup_db():
-    async with test_engine.begin() as conn:
+    async with _engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.drop_all)
         await conn.run_sync(SQLModel.metadata.create_all)
     yield
-    async with test_engine.begin() as conn:
+    async with _engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.drop_all)
+    await _engine.dispose()
+    if os.path.exists(_TEST_DB):
+        os.remove(_TEST_DB)
 
 
 @pytest_asyncio.fixture()
 async def db() -> AsyncGenerator[AsyncSession, None]:
-    async with TestSessionLocal() as session:
+    async with _session_factory() as session:
         yield session
 
 
 @pytest_asyncio.fixture()
-async def client(db: AsyncSession):
+async def client() -> AsyncGenerator[AsyncClient, None]:
+    # Fresh session per request — independent of the test-setup db session,
+    # so service code that calls session.begin() starts on a clean connection.
     async def override_session():
-        yield db
+        async with _session_factory() as fresh:
+            yield fresh
 
     app.dependency_overrides[get_session] = override_session
 
@@ -56,16 +70,19 @@ async def client(db: AsyncSession):
         patch("src.celery_tasks.send_email.delay"),
         patch("src.auth.utils.token_in_blocklist", new=AsyncMock(return_value=False)),
         patch("src.db.redis.add_jti_to_blocklist", new=AsyncMock()),
+        patch("src.db.session.create_db_and_tables", new=AsyncMock()),
+        patch("src.middleware.rate_limit.redis_client.incr", new=AsyncMock(return_value=0)),
+        patch("src.middleware.rate_limit.redis_client.expire", new=AsyncMock()),
     ):
         async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
+            transport=ASGITransport(app=app), base_url="http://localhost"
         ) as c:
             yield c
 
     app.dependency_overrides.clear()
 
 
-# ── helpers ──────────────────────────────────────────────────────────────────
+# ── helpers ───────────────────────────────────────────────────────────────────
 
 def unique_email() -> str:
     return f"u_{uuid.uuid4().hex[:8]}@test.com"
@@ -77,7 +94,6 @@ async def make_user(
     password: str = "password123",
     verified: bool = True,
 ) -> tuple[User, str]:
-    """Insert a user directly and return (user, access_token)."""
     user = User(
         email=unique_email(),
         username=f"user_{uuid.uuid4().hex[:6]}",
@@ -90,7 +106,6 @@ async def make_user(
     db.add(user)
     await db.commit()
     await db.refresh(user)
-
     token = create_access_token(
         user_data={"email": user.email, "uid": str(user.uid), "roles": user.role}
     )
@@ -130,9 +145,7 @@ async def make_trip(db: AsyncSession, driver: User, car: Car) -> Trip:
 
 
 async def make_route_points(db: AsyncSession, trip: Trip) -> tuple[RoutePoint, RoutePoint]:
-    """Create pickup and dropoff route points for a trip."""
     stop_time = trip.start_time + timedelta(hours=1)
-
     pickup = RoutePoint(
         trip_id=trip.id,
         location="Almaty Bus Station",

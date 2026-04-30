@@ -33,70 +33,61 @@ async def create_booking(
     current_user: User,
     data: BookingCreate,
 ) -> Booking:
+    pickup = await session.get(RoutePoint, data.pickup_route_id)
+    dropoff = await session.get(RoutePoint, data.dropoff_route_id)
 
-    async with session.begin():
+    if not pickup or not dropoff:
+        raise RoutePointNotFoundException()
 
-        pickup = await session.get(RoutePoint, data.pickup_route_id)
-        dropoff = await session.get(RoutePoint, data.dropoff_route_id)
+    if pickup.trip_id != data.trip_id or dropoff.trip_id != data.trip_id:
+        raise InvalidRoutePointsException()
 
-        if not pickup or not dropoff:
-            raise RoutePointNotFoundException()
+    if pickup.order >= dropoff.order:
+        raise PickupAfterDropoffException()
 
-        if pickup.trip_id != data.trip_id or dropoff.trip_id != data.trip_id:
-            raise InvalidRoutePointsException()
+    res = await session.execute(
+        select(Trip).where(Trip.id == data.trip_id).with_for_update()
+    )
+    trip = res.scalar_one_or_none()
 
-        if pickup.order >= dropoff.order:
-            raise PickupAfterDropoffException()
+    if not trip:
+        raise TripNotFoundException()
 
-        res = await session.execute(
-            select(Trip)
-            .where(Trip.id == data.trip_id)
-            .with_for_update()
+    if trip.status != TripStatus.planned:
+        raise TripAlreadyCompletedException()
+
+    if trip.driver_id == current_user.uid:
+        raise PassengerOwnTripException()
+
+    if trip.available_seats <= 0:
+        raise NoSeatsAvailableException()
+
+    res = await session.execute(
+        select(Booking).where(
+            Booking.trip_id == data.trip_id,
+            Booking.passenger_id == current_user.uid,
+            Booking.status == BookingStatus.confirmed,
         )
+    )
+    existing = res.scalar_one_or_none()
 
-        trip = res.scalar_one_or_none()
+    if existing:
+        raise DuplicateBookingException()
 
-        if not trip:
-            raise TripNotFoundException()
+    trip.available_seats -= 1
 
-        if trip.status != TripStatus.planned:
-            raise TripAlreadyCompletedException()
-
-        if trip.driver_id == current_user.uid:
-            raise PassengerOwnTripException()
-
-        if trip.available_seats <= 0:
-            raise NoSeatsAvailableException()
-
-        res = await session.execute(
-            select(Booking).where(
-                Booking.trip_id == data.trip_id,
-                Booking.passenger_id == current_user.uid,
-                Booking.status == BookingStatus.confirmed,
-            )
-        )
-
-        existing = res.scalar_one_or_none()
-
-        if existing:
-            raise DuplicateBookingException()
-
-        trip.available_seats -= 1
-
-        booking = Booking(
-            passenger_id=current_user.uid,
-            trip_id=data.trip_id,
-            pickup_route_id=data.pickup_route_id,
-            dropoff_route_id=data.dropoff_route_id,
-            status=BookingStatus.confirmed,
-        )
-
-        session.add(booking)
-
-        await session.flush()
+    booking = Booking(
+        passenger_id=current_user.uid,
+        trip_id=data.trip_id,
+        pickup_route_id=data.pickup_route_id,
+        dropoff_route_id=data.dropoff_route_id,
+        status=BookingStatus.confirmed,
+    )
+    session.add(booking)
+    await session.flush()
+    await session.commit()
 
     await session.refresh(booking)
-
     return booking
 
 

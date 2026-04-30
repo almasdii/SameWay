@@ -84,14 +84,11 @@ async def register(
 
 @auth_router.get("/verify-email/{token}")
 async def verify_email(token: str, session: AsyncSession = Depends(get_session)):
-    try:
-        token_data = decode_url_safe_token(token, max_age=3600)
-    except Exception as e:
-        raise InvalidToken(detail=f"Token expired or invalid: {str(e)}")
-    
+    token_data = decode_url_safe_token(token, max_age=3600)
+
     email = token_data.get("email")
     if not email:
-        raise InvalidToken(detail="No email found in verification token")
+        raise InvalidToken("No email found in verification token")
     
     user = await user_service.get_user_by_email(session, email)
     if not user:
@@ -219,10 +216,7 @@ async def password_reset_confirm(
     if len(passwords.new_password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
 
-    try:
-        token_data = decode_url_safe_token(token, max_age=3600)
-    except Exception as e:
-        raise InvalidToken(detail=f"Token expired or invalid: {str(e)}")
+    token_data = decode_url_safe_token(token, max_age=3600)
 
     email = token_data.get("email")
     if not email:
