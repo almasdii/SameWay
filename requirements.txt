@@ -15,6 +15,7 @@ python-dateutil
 email-validator
 python-multipart
 fastapi-mail
+resend
 alembic
 pydantic-settings
 python-dotenv

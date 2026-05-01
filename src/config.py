@@ -30,6 +30,7 @@ class Settings:
     USE_CREDENTIALS: bool = os.getenv("USE_CREDENTIALS", "True") == "True"
     VALIDATE_CERTS: bool = os.getenv("VALIDATE_CERTS", "False") == "True"
 
+    RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "")
     BASE_URL: str = os.getenv("BASE_URL", "http://localhost:8000")
     SUPPORT_EMAIL: str = os.getenv("SUPPORT_EMAIL", "support@taxisystem.com")
     ALLOWED_ORIGINS: str = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000")
