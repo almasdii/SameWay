@@ -15,7 +15,6 @@ from src.errors.customErrors import register_error_handlers
 from src.auth.routes import auth_router
 from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from src.middleware.logging import log_request
 from src.middleware.rate_limit import rate_limit_middleware
 from src.config import settings
@@ -36,16 +35,6 @@ app.add_middleware(
 )
 
 
-allowed_hosts=[
-    "localhost",
-    "127.0.0.1",
-    "taxiSystem.com"
-]
-
-app.add_middleware(
-	TrustedHostMiddleware,
-	allowed_hosts=allowed_hosts,
-)
 app.middleware("http")(rate_limit_middleware)
 app.middleware("http")(log_request)
 
