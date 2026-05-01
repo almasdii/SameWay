@@ -4,7 +4,7 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
 
-mail = None  # 👈 отключаем mail
+mail = None  
 
 try:
     if settings.MAIL_USERNAME:

@@ -10,7 +10,6 @@ from tests.conftest import (
 from src.db.models import UserRole
 
 
-# ── booking ───────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_create_booking(client: AsyncClient, db):
@@ -132,7 +131,6 @@ async def test_list_my_bookings(client: AsyncClient, db):
     assert len(resp.json()) >= 1
 
 
-# ── payments ──────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_create_payment_pending(client: AsyncClient, db):

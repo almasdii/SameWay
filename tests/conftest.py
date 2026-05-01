@@ -23,8 +23,6 @@ from src.main import app
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-# File-based SQLite + NullPool: each session/request gets its own connection,
-# avoiding the "transaction already begun" conflict when services call session.begin()
 _TEST_DB = os.path.join(os.path.dirname(__file__), "test.db")
 _TEST_DB_URL = f"sqlite+aiosqlite:///{_TEST_DB}"
 
@@ -58,8 +56,6 @@ async def db() -> AsyncGenerator[AsyncSession, None]:
 
 @pytest_asyncio.fixture()
 async def client() -> AsyncGenerator[AsyncClient, None]:
-    # Fresh session per request — independent of the test-setup db session,
-    # so service code that calls session.begin() starts on a clean connection.
     async def override_session():
         async with _session_factory() as fresh:
             yield fresh
@@ -82,7 +78,6 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
     app.dependency_overrides.clear()
 
 
-# ── helpers ───────────────────────────────────────────────────────────────────
 
 def unique_email() -> str:
     return f"u_{uuid.uuid4().hex[:8]}@test.com"

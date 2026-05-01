@@ -10,10 +10,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Add 'in_progress' value to the tripstatus enum
     op.execute("ALTER TYPE tripstatus ADD VALUE IF NOT EXISTS 'in_progress'")
 
-    # Create support_requests table
     op.create_table(
         'support_requests',
         sa.Column('id', sa.Integer(), nullable=False, autoincrement=True),
@@ -31,5 +29,3 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index('ix_support_requests_email', table_name='support_requests')
     op.drop_table('support_requests')
-    # Note: removing an enum value from PostgreSQL is not supported natively.
-    # 'in_progress' remains in the tripstatus type after downgrade.

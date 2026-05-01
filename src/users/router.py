@@ -51,7 +51,6 @@ async def me(current_user: User = Depends(get_current_user)):
     return current_user
 
 
-# Must come before /{user_email} to avoid being swallowed by the path parameter
 @router.get("/me/driver-dashboard", dependencies=[Depends(access_token), Depends(allow_driver)])
 async def driver_dashboard(
     session: AsyncSessionDep,
@@ -84,7 +83,6 @@ async def driver_dashboard(
     }
 
 
-# Must come before /{user_email} — otherwise /users/stats is captured as user_email="stats"
 @router.get("/search", response_model=list[UserRead], dependencies=[Depends(access_token)])
 async def search(
     session: AsyncSessionDep,
