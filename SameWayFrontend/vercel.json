@@ -1,6 +1,16 @@
 {
-  "routes": [
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/" }
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://sameway-production.up.railway.app/:path*"
+    },
+    {
+      "source": "/auth/:path*",
+      "destination": "https://sameway-production.up.railway.app/auth/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }
