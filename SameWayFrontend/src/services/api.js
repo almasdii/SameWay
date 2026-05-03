@@ -81,6 +81,10 @@ export const usersAPI = {
     const response = await api.get('/users/me');
     return response.data;
   },
+    getDriverDashboard: async () => {
+          const response = await api.get('/users/me/driver-dashboard');
+          return response.data;
+        },
 
   updateMe: async (userData) => {
     const response = await api.patch('/users/me', userData);

@@ -24,6 +24,7 @@ const DriverDashboard = () => {
 
       if (activeTab === 'overview') {
         const dashboardData = await usersAPI.getDriverDashboard();
+        console.log("RAW DASHBOARD DATA FROM BACKEND:", dashboardData);
         setData(prev => ({ ...prev, dashboardData, loading: false }));
       }
       else if (activeTab === 'cars') {
@@ -232,27 +233,32 @@ const DriverDashboard = () => {
               <h3 className="text-lg font-semibold text-gray-900">Dashboard Overview</h3>
 
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-blue-50 rounded-lg p-4">
-                  <h4 className="text-blue-800 font-semibold">Active Cars</h4>
-                  <p className="text-2xl font-bold text-blue-600 mt-2">
-                    {data.dashboardData.active_cars || 0}
-                  </p>
-                </div>
-                <div className="bg-green-50 rounded-lg p-4">
-                  <h4 className="text-green-800 font-semibold">Active Trips</h4>
-                  <p className="text-2xl font-bold text-green-600 mt-2">
-                    {data.dashboardData.active_trips || 0}
-                  </p>
-                </div>
-                <div className="bg-purple-50 rounded-lg p-4">
-                  <h4 className="text-purple-800 font-semibold">Total Earnings</h4>
-                  <p className="text-2xl font-bold text-purple-600 mt-2">
-                    ${data.dashboardData.total_earnings || 0}
-                  </p>
-                </div>
-              </div>
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
+               <div className="bg-blue-50 rounded-lg p-4">
+                 <h4 className="text-blue-800 font-semibold">Planned Trips</h4>
+                 <p className="text-2xl font-bold text-blue-600 mt-2">
+
+                   {data.dashboardData.trips_by_status?.['TripStatus.planned'] || 0}
+                 </p>
+               </div>
+
+
+               <div className="bg-green-50 rounded-lg p-4">
+                 <h4 className="text-green-800 font-semibold">Pending Earnings</h4>
+                 <p className="text-2xl font-bold text-green-600 mt-2">
+                   ${data.dashboardData.pending_earnings || 0}
+                 </p>
+               </div>
+
+
+               <div className="bg-purple-50 rounded-lg p-4">
+                 <h4 className="text-purple-800 font-semibold">Total Earnings</h4>
+                 <p className="text-2xl font-bold text-purple-600 mt-2">
+                   ${data.dashboardData.total_earnings || 0}
+                 </p>
+               </div>
+             </div>
 
               <div>
                 <h4 className="font-semibold text-gray-900 mb-3">Recent Activity</h4>
