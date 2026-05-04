@@ -561,6 +561,14 @@ const PassengerDashboard = () => {
                           <p className="text-sm text-gray-600 mt-1">Departure: {new Date(trip.start_time).toLocaleString()}</p>
                           <p className="text-sm text-gray-600">Available seats: <span className="font-medium">{trip.available_seats}</span></p>
                           <p className="text-sm text-gray-600">Price: <span className="font-semibold text-purple-700">${trip.price_per_seat}</span></p>
+                          {trip.driver_username && (
+                            <p className="text-sm text-gray-600 mt-1">
+                              Driver: <span className="font-medium">{trip.driver_username}</span>
+                              {trip.driver_rating > 0 && (
+                                <span className="ml-2 text-yellow-600 font-medium">★ {trip.driver_rating.toFixed(1)}</span>
+                              )}
+                            </p>
+                          )}
                         </div>
                         <button onClick={() => setBookingModal(trip)} disabled={trip.available_seats === 0}
                           className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed ml-4">
@@ -612,6 +620,9 @@ const PassengerDashboard = () => {
                                 {trip.driver_username && (
                                   <p className="text-sm text-gray-600">Driver: <span className="font-medium">{trip.driver_username}</span>
                                     {trip.driver_phone && <span className="text-gray-500"> · {trip.driver_phone}</span>}
+                                    {trip.driver_rating > 0 && (
+                                      <span className="ml-2 text-yellow-600 font-medium">★ {trip.driver_rating.toFixed(1)}</span>
+                                    )}
                                   </p>
                                 )}
                                 {trip.car_model && (

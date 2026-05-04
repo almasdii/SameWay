@@ -88,5 +88,6 @@ class TripRead(TripBase):
 
     driver_username: Optional[str] = None
     driver_phone: Optional[str] = None
+    driver_rating: Optional[float] = None
     car_model: Optional[str] = None
     car_plate: Optional[str] = None

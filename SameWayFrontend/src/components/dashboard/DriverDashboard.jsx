@@ -761,7 +761,12 @@ const DriverDashboard = () => {
                                     <div className="flex justify-between items-start">
                                       <div>
                                         <p className="text-gray-700 font-medium">Booking #{b.id}</p>
-                                        <p className="text-gray-500">Passenger: {b.passenger_username || b.passenger_id}</p>
+                                        <p className="text-gray-500">
+                                          Passenger: {b.passenger_username || b.passenger_id}
+                                          {b.passenger_rating > 0 && (
+                                            <span className="ml-2 text-yellow-600 font-medium">★ {b.passenger_rating.toFixed(1)}</span>
+                                          )}
+                                        </p>
                                         {b.passenger_phone && <p className="text-gray-500">Phone: {b.passenger_phone}</p>}
                                         <span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs ${
                                           b.status === 'confirmed' ? 'bg-green-100 text-green-800' :

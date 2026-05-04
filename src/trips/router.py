@@ -27,6 +27,7 @@ def _enrich(trip: Trip) -> dict:
     if trip.driver:
         d['driver_username'] = trip.driver.username
         d['driver_phone'] = trip.driver.phone
+        d['driver_rating'] = trip.driver.average_rating
     if trip.car:
         d['car_model'] = trip.car.model
         d['car_plate'] = trip.car.plate_number

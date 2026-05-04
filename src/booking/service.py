@@ -128,14 +128,14 @@ async def list_trip_bookings(
         raise BookingOwnershipException()
 
     res = await session.execute(
-        select(Booking, User.username, User.phone)
+        select(Booking, User.username, User.phone, User.average_rating)
         .join(User, User.uid == Booking.passenger_id)
         .where(Booking.trip_id == trip_id)
     )
 
     rows = res.all()
     result = []
-    for booking, username, phone in rows:
+    for booking, username, phone, rating in rows:
         result.append(BookingRead(
             id=booking.id,
             trip_id=booking.trip_id,
@@ -144,6 +144,7 @@ async def list_trip_bookings(
             passenger_id=booking.passenger_id,
             passenger_username=username,
             passenger_phone=phone,
+            passenger_rating=rating,
             status=booking.status,
             created_at=booking.created_at,
         ))
