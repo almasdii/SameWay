@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { usersAPI, carsAPI, tripsAPI, bookingsAPI, routePointsAPI } from '../../services/api';
+import { usersAPI, carsAPI, tripsAPI, bookingsAPI, routePointsAPI, paymentsAPI } from '../../services/api';
 
 const STATUS_LABELS = {
   planned: { label: 'Planned', cls: 'bg-blue-100 text-blue-800' },
@@ -188,6 +188,7 @@ const DriverDashboard = () => {
   const [myCars, setMyCars] = useState([]);
   const [myTrips, setMyTrips] = useState([]);
   const [tripBookings, setTripBookings] = useState({});
+  const [bookingPayments, setBookingPayments] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -224,8 +225,36 @@ const DriverDashboard = () => {
     try {
       const bookings = await bookingsAPI.getTripBookings(tripId);
       setTripBookings(prev => ({ ...prev, [tripId]: bookings }));
+      const paymentMap = {};
+      await Promise.all(bookings.map(async b => {
+        try {
+          const payments = await paymentsAPI.getByBookingId(b.id);
+          paymentMap[b.id] = payments.length > 0 ? payments[payments.length - 1] : null;
+        } catch {
+          paymentMap[b.id] = null;
+        }
+      }));
+      setBookingPayments(prev => ({ ...prev, ...paymentMap }));
     } catch {
       setTripBookings(prev => ({ ...prev, [tripId]: [] }));
+    }
+  };
+
+  const handleConfirmPayment = async (paymentId, tripId) => {
+    try {
+      await paymentsAPI.confirm(paymentId);
+      loadTripBookings(tripId);
+    } catch (err) {
+      alert(err.response?.data?.detail || err.message);
+    }
+  };
+
+  const handleFailPayment = async (paymentId, tripId) => {
+    try {
+      await paymentsAPI.fail(paymentId);
+      loadTripBookings(tripId);
+    } catch (err) {
+      alert(err.response?.data?.detail || err.message);
     }
   };
 
@@ -469,14 +498,39 @@ const DriverDashboard = () => {
                               <div className="space-y-2">
                                 {tripBookings[trip.id].map(b => (
                                   <div key={b.id} className="bg-gray-50 rounded p-3 text-sm">
-                                    <p className="text-gray-700">Booking #{b.id}</p>
-                                    <p className="text-gray-500">Passenger: {b.passenger_username || b.passenger_id}</p>
-                                    {b.passenger_phone && <p className="text-gray-500">Phone: {b.passenger_phone}</p>}
-                                    <span className={`px-2 py-0.5 rounded text-xs ${
-                                      b.status === 'confirmed' ? 'bg-green-100 text-green-800' :
-                                      b.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                      'bg-gray-100 text-gray-600'
-                                    }`}>{b.status}</span>
+                                    <div className="flex justify-between items-start">
+                                      <div>
+                                        <p className="text-gray-700 font-medium">Booking #{b.id}</p>
+                                        <p className="text-gray-500">Passenger: {b.passenger_username || b.passenger_id}</p>
+                                        {b.passenger_phone && <p className="text-gray-500">Phone: {b.passenger_phone}</p>}
+                                        <span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs ${
+                                          b.status === 'confirmed' ? 'bg-green-100 text-green-800' :
+                                          b.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                          'bg-gray-100 text-gray-600'
+                                        }`}>{b.status}</span>
+                                        {bookingPayments[b.id] && (
+                                          <span className={`inline-block mt-1 ml-2 px-2 py-0.5 rounded text-xs ${
+                                            bookingPayments[b.id].status === 'completed' ? 'bg-green-100 text-green-800' :
+                                            bookingPayments[b.id].status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                            'bg-red-100 text-red-800'
+                                          }`}>
+                                            Payment: {bookingPayments[b.id].status} (${bookingPayments[b.id].amount})
+                                          </span>
+                                        )}
+                                      </div>
+                                      {bookingPayments[b.id]?.status === 'pending' && (
+                                        <div className="flex flex-col space-y-1 ml-3">
+                                          <button onClick={() => handleConfirmPayment(bookingPayments[b.id].id, trip.id)}
+                                            className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700">
+                                            Confirm
+                                          </button>
+                                          <button onClick={() => handleFailPayment(bookingPayments[b.id].id, trip.id)}
+                                            className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700">
+                                            Fail
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
                                 ))}
                               </div>
