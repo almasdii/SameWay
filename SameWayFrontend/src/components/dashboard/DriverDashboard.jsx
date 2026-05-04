@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { usersAPI, carsAPI, tripsAPI, bookingsAPI, routePointsAPI, paymentsAPI, supportAPI } from '../../services/api';
+import { usersAPI, carsAPI, tripsAPI, bookingsAPI, routePointsAPI, paymentsAPI, supportAPI, reviewsAPI } from '../../services/api';
 
 const STATUS_LABELS = {
   planned: { label: 'Planned', cls: 'bg-blue-100 text-blue-800' },
@@ -180,6 +180,69 @@ const CreateTripModal = ({ cars, onClose, onSave }) => {
   );
 };
 
+const StarRating = ({ value, onChange }) => (
+  <div className="flex gap-1">
+    {[1, 2, 3, 4, 5].map(star => (
+      <button key={star} type="button" onClick={() => onChange && onChange(star)}
+        className={`text-3xl transition-colors leading-none ${star <= value ? 'text-yellow-400' : 'text-gray-300'} ${onChange ? 'hover:text-yellow-400 cursor-pointer' : 'cursor-default'}`}>
+        ★
+      </button>
+    ))}
+  </div>
+);
+
+const ReviewPassengerModal = ({ tripId, passenger, onClose, onSubmitted }) => {
+  const [rate, setRate] = useState(5);
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    try {
+      await reviewsAPI.create({ trip_id: tripId, reviewee_id: passenger.id, rate, message });
+      onSubmitted(passenger.id);
+      onClose();
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : JSON.stringify(detail) || err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal title={`Rate Passenger: ${passenger.name}`} onClose={onClose}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && <p className="text-sm text-red-600 bg-red-50 p-2 rounded">{error}</p>}
+        <div>
+          <StarRating value={rate} onChange={setRate} />
+          <p className="text-xs text-gray-400 mt-1">{rate} / 5</p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Your review</label>
+          <textarea rows={3} value={message} onChange={e => setMessage(e.target.value)}
+            placeholder="How was this passenger?"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none resize-none"
+            required minLength={1} />
+        </div>
+        <div className="flex justify-end space-x-3">
+          <button type="button" onClick={onClose}
+            className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">
+            Cancel
+          </button>
+          <button type="submit" disabled={loading}
+            className="px-4 py-2 text-sm bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 disabled:opacity-50">
+            {loading ? 'Submitting...' : 'Submit Review'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+};
+
 const SUPPORT_CATEGORIES = ['bug', 'feature_request', 'complaint', 'other'];
 
 const AccountTab = ({ user }) => {
@@ -332,11 +395,14 @@ const DriverDashboard = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
   const [modal, setModal] = useState(null); // 'car' | 'trip' | null
+  const [reviewModal, setReviewModal] = useState(null);
   const [dashboardData, setDashboardData] = useState(null);
   const [myCars, setMyCars] = useState([]);
   const [myTrips, setMyTrips] = useState([]);
+  const [myReviews, setMyReviews] = useState([]);
   const [tripBookings, setTripBookings] = useState({});
   const [bookingPayments, setBookingPayments] = useState({});
+  const [reviewedPassengers, setReviewedPassengers] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -361,6 +427,9 @@ const DriverDashboard = () => {
           throw err;
         });
         setMyTrips(Array.isArray(trips) ? trips : []);
+      } else if (activeTab === 'reviews') {
+        const reviews = await reviewsAPI.getByUserId(user.uid).catch(() => []);
+        setMyReviews(Array.isArray(reviews) ? reviews : []);
       }
     } catch (err) {
       setError(err.response?.data?.detail || err.message || 'Failed to load data');
@@ -461,6 +530,7 @@ const DriverDashboard = () => {
     { key: 'overview', label: 'Overview' },
     { key: 'cars', label: 'My Cars' },
     { key: 'trips', label: 'My Trips' },
+    { key: 'reviews', label: 'Reviews' },
     { key: 'account', label: 'Account' },
   ];
 
@@ -490,6 +560,14 @@ const DriverDashboard = () => {
       )}
       {modal === 'trip' && (
         <CreateTripModal cars={myCars} onClose={() => setModal(null)} onSave={handleCreateTrip} />
+      )}
+      {reviewModal && (
+        <ReviewPassengerModal
+          tripId={reviewModal.tripId}
+          passenger={reviewModal.passenger}
+          onClose={() => setReviewModal(null)}
+          onSubmitted={(passengerId) => setReviewedPassengers(prev => new Set([...prev, passengerId]))}
+        />
       )}
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
@@ -700,18 +778,30 @@ const DriverDashboard = () => {
                                           </span>
                                         )}
                                       </div>
-                                      {bookingPayments[b.id]?.status === 'pending' && (
-                                        <div className="flex flex-col space-y-1 ml-3">
-                                          <button onClick={() => handleConfirmPayment(bookingPayments[b.id].id, trip.id)}
-                                            className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700">
-                                            Confirm
+                                      <div className="flex flex-col space-y-1 ml-3">
+                                        {bookingPayments[b.id]?.status === 'pending' && (
+                                          <>
+                                            <button onClick={() => handleConfirmPayment(bookingPayments[b.id].id, trip.id)}
+                                              className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700">
+                                              Confirm
+                                            </button>
+                                            <button onClick={() => handleFailPayment(bookingPayments[b.id].id, trip.id)}
+                                              className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700">
+                                              Fail
+                                            </button>
+                                          </>
+                                        )}
+                                        {trip.status === 'completed' && b.status !== 'cancelled' && !reviewedPassengers.has(b.passenger_id) && (
+                                          <button
+                                            onClick={() => setReviewModal({ tripId: trip.id, passenger: { id: b.passenger_id, name: b.passenger_username || 'Passenger' } })}
+                                            className="px-2 py-1 bg-yellow-500 text-white rounded text-xs hover:bg-yellow-600">
+                                            Rate
                                           </button>
-                                          <button onClick={() => handleFailPayment(bookingPayments[b.id].id, trip.id)}
-                                            className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700">
-                                            Fail
-                                          </button>
-                                        </div>
-                                      )}
+                                        )}
+                                        {trip.status === 'completed' && reviewedPassengers.has(b.passenger_id) && (
+                                          <span className="px-2 py-1 bg-yellow-50 text-yellow-700 rounded text-xs text-center">★ Rated</span>
+                                        )}
+                                      </div>
                                     </div>
                                   </div>
                                 ))}
@@ -722,6 +812,50 @@ const DriverDashboard = () => {
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* REVIEWS */}
+          {activeTab === 'reviews' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">Reviews About Me</h3>
+                {myReviews.length > 0 && (
+                  <div className="flex items-center gap-2 bg-yellow-50 px-3 py-1.5 rounded-lg">
+                    <StarRating value={Math.round(myReviews.reduce((s, r) => s + r.rate, 0) / myReviews.length)} onChange={null} />
+                    <span className="text-sm font-semibold text-yellow-700">
+                      {(myReviews.reduce((s, r) => s + r.rate, 0) / myReviews.length).toFixed(1)}
+                    </span>
+                    <span className="text-sm text-gray-500">({myReviews.length} review{myReviews.length !== 1 ? 's' : ''})</span>
+                  </div>
+                )}
+              </div>
+
+              {myReviews.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <p className="text-4xl mb-3">★</p>
+                  <p>No reviews yet. Complete trips to receive ratings.</p>
+                </div>
+              ) : (
+                <div className="grid gap-3">
+                  {myReviews.map(review => (
+                    <div key={review.id} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <StarRating value={review.rate} onChange={null} />
+                          <p className="text-sm text-gray-800 mt-2">{review.message}</p>
+                        </div>
+                        <div className="text-right ml-4">
+                          <span className="text-xs text-gray-400">
+                            {new Date(review.created_at).toLocaleDateString()}
+                          </span>
+                          <p className="text-xs text-gray-500 mt-1">Trip #{review.trip_id}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

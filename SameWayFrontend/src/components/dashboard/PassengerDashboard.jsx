@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { tripsAPI, bookingsAPI, routePointsAPI, paymentsAPI, supportAPI, usersAPI } from '../../services/api';
+import { tripsAPI, bookingsAPI, routePointsAPI, paymentsAPI, supportAPI, usersAPI, reviewsAPI } from '../../services/api';
 
 const PAYMENT_STATUS = {
   pending:   { label: 'Payment Pending',   cls: 'bg-yellow-100 text-yellow-800' },
@@ -150,6 +150,78 @@ const PaymentModal = ({ booking, onClose, onPaid }) => {
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+};
+
+const StarRating = ({ value, onChange }) => (
+  <div className="flex gap-1">
+    {[1, 2, 3, 4, 5].map(star => (
+      <button key={star} type="button" onClick={() => onChange && onChange(star)}
+        className={`text-3xl transition-colors leading-none ${star <= value ? 'text-yellow-400' : 'text-gray-300'} ${onChange ? 'hover:text-yellow-400 cursor-pointer' : 'cursor-default'}`}>
+        ★
+      </button>
+    ))}
+  </div>
+);
+
+const ReviewDriverModal = ({ booking, trip, onClose, onSubmitted }) => {
+  const [rate, setRate] = useState(5);
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    try {
+      await reviewsAPI.create({ trip_id: trip.id, reviewee_id: trip.driver_id, rate, message });
+      onSubmitted(booking.trip_id);
+      onClose();
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : JSON.stringify(detail) || err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">
+            Rate {trip?.driver_username || 'Driver'}
+          </h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && <p className="text-sm text-red-600 bg-red-50 p-2 rounded">{error}</p>}
+          <div>
+            <p className="text-sm text-gray-600 mb-2">Trip: {trip?.origin} → {trip?.destination}</p>
+            <StarRating value={rate} onChange={setRate} />
+            <p className="text-xs text-gray-400 mt-1">{rate} / 5</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Your review</label>
+            <textarea rows={3} value={message} onChange={e => setMessage(e.target.value)}
+              placeholder="Share your experience with this driver..."
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none resize-none"
+              required minLength={1} />
+          </div>
+          <div className="flex justify-end space-x-3">
+            <button type="button" onClick={onClose}
+              className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">
+              Cancel
+            </button>
+            <button type="submit" disabled={loading}
+              className="px-4 py-2 text-sm bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 disabled:opacity-50">
+              {loading ? 'Submitting...' : 'Submit Review'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -308,6 +380,8 @@ const PassengerDashboard = () => {
   const [error, setError] = useState(null);
   const [bookingModal, setBookingModal] = useState(null);
   const [paymentModal, setPaymentModal] = useState(null);
+  const [reviewModal, setReviewModal] = useState(null);
+  const [reviewedTrips, setReviewedTrips] = useState(new Set());
   const [searchQuery, setSearchQuery] = useState({ from: '', to: '' });
   const [searching, setSearching] = useState(false);
 
@@ -413,6 +487,14 @@ const PassengerDashboard = () => {
       )}
       {paymentModal && (
         <PaymentModal booking={paymentModal} onClose={() => setPaymentModal(null)} onPaid={loadData} />
+      )}
+      {reviewModal && (
+        <ReviewDriverModal
+          booking={reviewModal.booking}
+          trip={reviewModal.trip}
+          onClose={() => setReviewModal(null)}
+          onSubmitted={(tripId) => setReviewedTrips(prev => new Set([...prev, tripId]))}
+        />
       )}
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
@@ -548,6 +630,17 @@ const PassengerDashboard = () => {
                                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
                                 Pay
                               </button>
+                            )}
+                            {trip?.status === 'completed' && booking.status !== 'cancelled' && !reviewedTrips.has(booking.trip_id) && (
+                              <button onClick={() => setReviewModal({ booking, trip })}
+                                className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 text-sm">
+                                Rate Driver
+                              </button>
+                            )}
+                            {trip?.status === 'completed' && reviewedTrips.has(booking.trip_id) && (
+                              <span className="px-3 py-1.5 bg-yellow-50 text-yellow-700 rounded-lg text-sm text-center">
+                                ★ Reviewed
+                              </span>
                             )}
                             {booking.status !== 'cancelled' && trip?.status !== 'completed' && trip?.status !== 'in_progress' && (
                               <button onClick={() => handleCancelBooking(booking.id)}
