@@ -1,8 +1,8 @@
 
-
 import { useAuth } from '../contexts/AuthContext';
 import PassengerDashboard from '../components/dashboard/PassengerDashboard';
 import DriverDashboard from '../components/dashboard/DriverDashboard';
+import Navbar from '../components/Navbar';
 
 const Dashboard = () => {
     const { user, isAuthenticated, isLoading } = useAuth();
@@ -28,6 +28,7 @@ const Dashboard = () => {
 
     return (
         <div className="min-h-screen bg-gray-50">
+            <Navbar />
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {user?.role === 'driver' ? (
                     <DriverDashboard />
