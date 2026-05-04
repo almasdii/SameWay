@@ -211,7 +211,11 @@ async def list_payments(
             detail="Booking not found",
         )
 
-    if booking.passenger_id != current_user.uid:
+    trip = await session.get(Trip, booking.trip_id)
+    is_passenger = booking.passenger_id == current_user.uid
+    is_driver = trip and trip.driver_id == current_user.uid
+
+    if not is_passenger and not is_driver:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You cannot access payments for this booking",
