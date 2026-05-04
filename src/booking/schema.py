@@ -21,6 +21,8 @@ class BookingRead(BookingBase):
 
     id: int
     passenger_id: UUID
+    passenger_username: Optional[str] = None
+    passenger_phone: Optional[str] = None
     status: BookingStatus
     created_at: datetime
 

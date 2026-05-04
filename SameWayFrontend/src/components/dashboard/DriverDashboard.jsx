@@ -470,7 +470,8 @@ const DriverDashboard = () => {
                                 {tripBookings[trip.id].map(b => (
                                   <div key={b.id} className="bg-gray-50 rounded p-3 text-sm">
                                     <p className="text-gray-700">Booking #{b.id}</p>
-                                    <p className="text-gray-500">Passenger: {b.passenger_id}</p>
+                                    <p className="text-gray-500">Passenger: {b.passenger_username || b.passenger_id}</p>
+                                    {b.passenger_phone && <p className="text-gray-500">Phone: {b.passenger_phone}</p>}
                                     <span className={`px-2 py-0.5 rounded text-xs ${
                                       b.status === 'confirmed' ? 'bg-green-100 text-green-800' :
                                       b.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :

@@ -128,10 +128,18 @@ async def list_trip_bookings(
         raise BookingOwnershipException()
 
     res = await session.execute(
-        select(Booking).where(Booking.trip_id == trip_id)
+        select(Booking, User.username, User.phone)
+        .join(User, User.uid == Booking.passenger_id)
+        .where(Booking.trip_id == trip_id)
     )
 
-    return res.scalars().all()
+    rows = res.all()
+    result = []
+    for booking, username, phone in rows:
+        booking.passenger_username = username
+        booking.passenger_phone = phone
+        result.append(booking)
+    return result
 
 async def cancel_booking(
     session: AsyncSession,
