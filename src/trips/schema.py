@@ -85,3 +85,8 @@ class TripRead(TripBase):
     status: TripStatus
 
     created_at: datetime
+
+    driver_username: Optional[str] = None
+    driver_phone: Optional[str] = None
+    car_model: Optional[str] = None
+    car_plate: Optional[str] = None

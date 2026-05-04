@@ -161,6 +161,7 @@ const PassengerDashboard = () => {
   const [availableTrips, setAvailableTrips] = useState([]);
   const [myBookings, setMyBookings] = useState([]);
   const [bookingPayments, setBookingPayments] = useState({});
+  const [bookingTrips, setBookingTrips] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [bookingModal, setBookingModal] = useState(null);
@@ -181,6 +182,7 @@ const PassengerDashboard = () => {
         const bookings = await bookingsAPI.getMyBookings();
         setMyBookings(bookings);
         const paymentMap = {};
+        const tripMap = {};
         await Promise.all(bookings.map(async b => {
           try {
             const payments = await paymentsAPI.getByBookingId(b.id);
@@ -188,8 +190,14 @@ const PassengerDashboard = () => {
           } catch {
             paymentMap[b.id] = null;
           }
+          try {
+            tripMap[b.trip_id] = await tripsAPI.getById(b.trip_id);
+          } catch {
+            tripMap[b.trip_id] = null;
+          }
         }));
         setBookingPayments(paymentMap);
+        setBookingTrips(tripMap);
       }
     } catch (err) {
       setError(err.response?.data?.detail || err.message || 'Failed to load data');
@@ -346,6 +354,7 @@ const PassengerDashboard = () => {
                 <div className="grid gap-4">
                   {myBookings.map(booking => {
                     const payment = bookingPayments[booking.id];
+                    const trip = bookingTrips[booking.trip_id];
                     const ps = payment ? PAYMENT_STATUS[payment.status] : null;
                     const canPay = booking.status === 'confirmed' && (!payment || payment.status === 'failed');
 
@@ -353,22 +362,42 @@ const PassengerDashboard = () => {
                       <div key={booking.id} className="border border-gray-200 rounded-lg p-4">
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
-                            <h4 className="font-semibold text-gray-900">Booking #{booking.id}</h4>
-                            <p className="text-sm text-gray-600 mt-1">Trip ID: {booking.trip_id}</p>
-                            <p className="text-sm text-gray-600">Created: {new Date(booking.created_at).toLocaleString()}</p>
-                            <div className="flex flex-wrap gap-2 mt-2">
-                              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            <div className="flex items-center gap-2 mb-1">
+                              <h4 className="font-semibold text-gray-900">Booking #{booking.id}</h4>
+                              <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                                 booking.status === 'confirmed' ? 'bg-green-100 text-green-800' :
                                 booking.status === 'cancelled' ? 'bg-red-100 text-red-800' :
                                 'bg-gray-100 text-gray-600'
                               }`}>{booking.status}</span>
                               {ps && (
-                                <span className={`px-2 py-1 rounded text-xs font-medium ${ps.cls}`}>{ps.label}</span>
+                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${ps.cls}`}>{ps.label}</span>
                               )}
                             </div>
-                            {payment && (
-                              <p className="text-xs text-gray-500 mt-1">Payment amount: ${payment.amount}</p>
+
+                            {trip ? (
+                              <div className="space-y-1 mt-1">
+                                <p className="text-base font-medium text-gray-800">{trip.origin} → {trip.destination}</p>
+                                <p className="text-sm text-gray-600">Departure: {new Date(trip.start_time).toLocaleString()}</p>
+                                <p className="text-sm text-gray-600">Price: <span className="font-semibold text-purple-700">${trip.price_per_seat}</span> per seat</p>
+                                {trip.driver_username && (
+                                  <p className="text-sm text-gray-600">Driver: <span className="font-medium">{trip.driver_username}</span>
+                                    {trip.driver_phone && <span className="text-gray-500"> · {trip.driver_phone}</span>}
+                                  </p>
+                                )}
+                                {trip.car_model && (
+                                  <p className="text-sm text-gray-600">Car: <span className="font-medium">{trip.car_model}</span>
+                                    {trip.car_plate && <span className="text-gray-500"> · {trip.car_plate}</span>}
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-gray-500 mt-1">Trip ID: {booking.trip_id}</p>
                             )}
+
+                            {payment && (
+                              <p className="text-xs text-gray-500 mt-2">Payment: ${payment.amount}</p>
+                            )}
+                            <p className="text-xs text-gray-400 mt-1">Booked: {new Date(booking.created_at).toLocaleString()}</p>
                           </div>
                           <div className="flex flex-col space-y-2 ml-4">
                             {canPay && (

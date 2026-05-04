@@ -21,6 +21,17 @@ from src.trips.service import (
 router = APIRouter(prefix="/trips", tags=["trips"])
 access_token = AccessTokenBearer()
 
+
+def _enrich(trip: Trip) -> dict:
+    d = TripRead.model_validate(trip).model_dump()
+    if trip.driver:
+        d['driver_username'] = trip.driver.username
+        d['driver_phone'] = trip.driver.phone
+    if trip.car:
+        d['car_model'] = trip.car.model
+        d['car_plate'] = trip.car.plate_number
+    return d
+
 @router.post(
     "",
     response_model=TripRead,
@@ -47,7 +58,7 @@ async def my_trips(
     from sqlmodel import select as _sel
     stmt = _sel(Trip).where(Trip.driver_id == current_user.uid).order_by(Trip.created_at.desc())
     result = await session.execute(stmt)
-    return list(result.scalars().all())
+    return [_enrich(t) for t in result.scalars().all()]
 
 
 @router.get("/available", response_model=list[TripRead])
@@ -56,7 +67,8 @@ async def available(
     pag: tuple[int, int] = Depends(pagination_params),
 ):
     limit, offset = pag
-    return await list_available_trips(session, limit=limit, offset=offset)
+    trips = await list_available_trips(session, limit=limit, offset=offset)
+    return [_enrich(t) for t in trips]
 
 
 @router.get("/search", response_model=list[TripRead])
@@ -65,7 +77,8 @@ async def search(
     from_location: str = Query(..., min_length=1, alias="from"),
     to_location: str = Query(..., min_length=1, alias="to"),
 ):
-    return await search_trips_by_routepoints(session, from_location, to_location)
+    trips = await search_trips_by_routepoints(session, from_location, to_location)
+    return [_enrich(t) for t in trips]
 
 
 @router.get("/{trip_id}", response_model=TripRead)
@@ -73,7 +86,7 @@ async def read(trip_id: int, session: AsyncSessionDep):
     trip = await get_trip(session, trip_id)
     if not trip:
         return await get_or_404(Trip, trip_id, session)
-    return trip
+    return _enrich(trip)
 
 
 @router.patch(
