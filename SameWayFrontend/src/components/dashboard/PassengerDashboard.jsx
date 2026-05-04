@@ -382,6 +382,7 @@ const PassengerDashboard = () => {
   const [paymentModal, setPaymentModal] = useState(null);
   const [reviewModal, setReviewModal] = useState(null);
   const [reviewedTrips, setReviewedTrips] = useState(new Set());
+  const [myReviews, setMyReviews] = useState([]);
   const [searchQuery, setSearchQuery] = useState({ from: '', to: '' });
   const [searching, setSearching] = useState(false);
 
@@ -414,6 +415,9 @@ const PassengerDashboard = () => {
         }));
         setBookingPayments(paymentMap);
         setBookingTrips(tripMap);
+      } else if (activeTab === 'reviews') {
+        const reviews = await reviewsAPI.getByUserId(user.uid).catch(() => []);
+        setMyReviews(Array.isArray(reviews) ? reviews : []);
       }
     } catch (err) {
       setError(err.response?.data?.detail || err.message || 'Failed to load data');
@@ -460,6 +464,7 @@ const PassengerDashboard = () => {
   const tabs = [
     { key: 'trips', label: 'Available Trips' },
     { key: 'bookings', label: 'My Bookings' },
+    { key: 'reviews', label: 'Reviews' },
     { key: 'account', label: 'Account' },
   ];
 
@@ -653,6 +658,49 @@ const PassengerDashboard = () => {
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* REVIEWS */}
+          {activeTab === 'reviews' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">Reviews About Me</h3>
+                {myReviews.length > 0 && (
+                  <div className="flex items-center gap-2 bg-yellow-50 px-3 py-1.5 rounded-lg">
+                    <StarRating value={Math.round(myReviews.reduce((s, r) => s + r.rate, 0) / myReviews.length)} onChange={null} />
+                    <span className="text-sm font-semibold text-yellow-700">
+                      {(myReviews.reduce((s, r) => s + r.rate, 0) / myReviews.length).toFixed(1)}
+                    </span>
+                    <span className="text-sm text-gray-500">({myReviews.length} review{myReviews.length !== 1 ? 's' : ''})</span>
+                  </div>
+                )}
+              </div>
+              {myReviews.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <p className="text-4xl mb-3">★</p>
+                  <p>No reviews yet. Complete trips to receive ratings from drivers.</p>
+                </div>
+              ) : (
+                <div className="grid gap-3">
+                  {myReviews.map(review => (
+                    <div key={review.id} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <StarRating value={review.rate} onChange={null} />
+                          <p className="text-sm text-gray-800 mt-2">{review.message}</p>
+                        </div>
+                        <div className="text-right ml-4">
+                          <span className="text-xs text-gray-400">
+                            {new Date(review.created_at).toLocaleDateString()}
+                          </span>
+                          <p className="text-xs text-gray-500 mt-1">Trip #{review.trip_id}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
