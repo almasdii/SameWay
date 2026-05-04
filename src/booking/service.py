@@ -10,7 +10,7 @@ from src.db.models import (
     User,
 )
 
-from src.booking.schema import BookingCreate
+from src.booking.schema import BookingCreate, BookingRead
 
 from src.errors.customErrors import (
     TripNotFoundException,
@@ -136,9 +136,17 @@ async def list_trip_bookings(
     rows = res.all()
     result = []
     for booking, username, phone in rows:
-        booking.passenger_username = username
-        booking.passenger_phone = phone
-        result.append(booking)
+        result.append(BookingRead(
+            id=booking.id,
+            trip_id=booking.trip_id,
+            pickup_route_id=booking.pickup_route_id,
+            dropoff_route_id=booking.dropoff_route_id,
+            passenger_id=booking.passenger_id,
+            passenger_username=username,
+            passenger_phone=phone,
+            status=booking.status,
+            created_at=booking.created_at,
+        ))
     return result
 
 async def cancel_booking(
