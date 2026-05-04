@@ -106,8 +106,18 @@ async def update_car(session: AsyncSession, current_user: User, car: Car, data: 
 
 
 async def delete_car(session: AsyncSession, current_user: User, car: Car) -> None:
+    from fastapi import HTTPException, status
+    from src.db.models import Trip
+
     if current_user.role != "admin" and car.driver_id != current_user.uid:
         raise DriverCarOwnershipException()
+
+    trip_check = await session.execute(select(Trip).where(Trip.car_id == car.id).limit(1))
+    if trip_check.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete car that has trips. Deactivate it instead.",
+        )
 
     await session.delete(car)
     await session.commit()
