@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { authAPI } from "../services/api";
 import styles from "./AuthPage.module.css";
 
 export default function AuthPage() {
@@ -11,6 +12,10 @@ export default function AuthPage() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [registerSuccess, setRegisterSuccess] = useState('');
+  const [forgotView, setForgotView] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotMsg, setForgotMsg] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
   const { login, register, error, clearError } = useAuth();
   const navigate = useNavigate();
 
@@ -51,6 +56,20 @@ export default function AuthPage() {
       }
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setForgotLoading(true);
+    setForgotMsg('');
+    try {
+      await authAPI.requestPasswordReset(forgotEmail);
+      setForgotMsg('Check your email for a password reset link.');
+    } catch (err) {
+      setForgotMsg(err.response?.data?.detail || err.message || 'Something went wrong.');
+    } finally {
+      setForgotLoading(false);
     }
   };
 
@@ -102,39 +121,65 @@ export default function AuthPage() {
 
       {/* Login form */}
       <div className={`${styles["form-container"]} ${styles["sign-in"]}`}>
-        <form onSubmit={handleLogin}>
-          <h1>Sign In</h1>
-          <span>Use your email and password</span>
+        {forgotView ? (
+          <form onSubmit={handleForgotPassword}>
+            <h1>Reset Password</h1>
+            <span>Enter your email to receive a reset link</span>
+            {forgotMsg && (
+              <div className={`w-full px-3 py-2 border rounded text-sm ${forgotMsg.includes('Check') ? 'bg-green-50 border-green-300 text-green-700' : 'bg-red-100 border-red-300 text-red-700'}`}>
+                {forgotMsg}
+              </div>
+            )}
+            <input type="email" placeholder="Email" value={forgotEmail}
+              onChange={e => setForgotEmail(e.target.value)} required />
+            <button type="submit" disabled={forgotLoading}>
+              {forgotLoading ? 'Sending...' : 'Send Reset Link'}
+            </button>
+            <button type="button" onClick={() => { setForgotView(false); setForgotMsg(''); }}
+              className="text-sm text-purple-600 hover:underline mt-2 bg-transparent border-none cursor-pointer">
+              Back to Sign In
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleLogin}>
+            <h1>Sign In</h1>
+            <span>Use your email and password</span>
 
-          {error && (
-            <div className="w-full px-3 py-2 bg-red-100 border border-red-300 rounded text-red-700 text-sm">
-              {error}
+            {error && (
+              <div className="w-full px-3 py-2 bg-red-100 border border-red-300 rounded text-red-700 text-sm">
+                {error}
+              </div>
+            )}
+
+            <input type="email" name="email" placeholder="Email" value={loginData.email}
+              onChange={handleLoginChange} required />
+            <input type="password" name="password" placeholder="Password" value={loginData.password}
+              onChange={handleLoginChange} required />
+
+            <button type="submit" disabled={isLoading}>
+              {isLoading ? 'Signing In...' : 'Sign In'}
+            </button>
+
+            <button type="button" onClick={() => { clearError(); setForgotView(true); }}
+              className="text-sm text-purple-600 hover:underline mt-1 bg-transparent border-none cursor-pointer">
+              Forgot password?
+            </button>
+
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <p className="text-xs text-gray-500 mb-2">Quick test login:</p>
+              <div className="space-y-1">
+                <button type="button" onClick={() => fillTestLogin('almaskak3@gmail.com', 'almas0224')}
+                  className="w-full px-3 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-xs">
+                  Passenger Test Account
+                </button>
+                <button type="button" onClick={() => fillTestLogin('almasikou@gmail.com', 'almas0224')}
+                  className="w-full px-3 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-xs">
+                  Driver Test Account
+                </button>
+              </div>
             </div>
-          )}
-
-          <input type="email" name="email" placeholder="Email" value={loginData.email}
-            onChange={handleLoginChange} required />
-          <input type="password" name="password" placeholder="Password" value={loginData.password}
-            onChange={handleLoginChange} required />
-
-          <button type="submit" disabled={isLoading}>
-            {isLoading ? 'Signing In...' : 'Sign In'}
-          </button>
-
-          <div className="mt-4 pt-4 border-t border-gray-200">
-            <p className="text-xs text-gray-500 mb-2">Quick test login:</p>
-            <div className="space-y-1">
-              <button type="button" onClick={() => fillTestLogin('almaskak3@gmail.com', 'almas0224')}
-                className="w-full px-3 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-xs">
-                Passenger Test Account
-              </button>
-              <button type="button" onClick={() => fillTestLogin('almasikou@gmail.com', 'almas0224')}
-                className="w-full px-3 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-xs">
-                Driver Test Account
-              </button>
-            </div>
-          </div>
-        </form>
+          </form>
+        )}
       </div>
 
       {/* Toggle panel */}

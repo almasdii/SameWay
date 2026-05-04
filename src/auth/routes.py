@@ -9,7 +9,6 @@ from src.auth.utils import (
     RefreshTokenBearer,
     AccessTokenBearer,
     create_access_token,
-    decode_token,
     get_current_user,
     create_url_safe_token,
     decode_url_safe_token
@@ -176,7 +175,7 @@ async def password_reset_request(
         raise UserNotFoundByEmail()
     
     token = create_url_safe_token({"email": email})
-    reset_link = f"{settings.BASE_URL}/auth/password-reset-confirm/{token}"
+    reset_link = f"{settings.FRONTEND_URL}/reset-password/{token}"
 
     send_email.delay(
         recipients=[email],

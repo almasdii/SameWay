@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { usersAPI, carsAPI, tripsAPI, bookingsAPI, routePointsAPI, paymentsAPI } from '../../services/api';
+import { usersAPI, carsAPI, tripsAPI, bookingsAPI, routePointsAPI, paymentsAPI, supportAPI } from '../../services/api';
 
 const STATUS_LABELS = {
   planned: { label: 'Planned', cls: 'bg-blue-100 text-blue-800' },
@@ -180,6 +180,154 @@ const CreateTripModal = ({ cars, onClose, onSave }) => {
   );
 };
 
+const SUPPORT_CATEGORIES = ['bug', 'feature_request', 'complaint', 'other'];
+
+const AccountTab = ({ user }) => {
+  const [profileForm, setProfileForm] = useState({ username: user?.username || '', surname: user?.surname || '', phone: user?.phone || '' });
+  const [passwordForm, setPasswordForm] = useState({ new_password: '', confirm: '' });
+  const [supportForm, setSupportForm] = useState({ subject: '', message: '', category: 'other' });
+  const [profileMsg, setProfileMsg] = useState('');
+  const [passwordMsg, setPasswordMsg] = useState('');
+  const [supportMsg, setSupportMsg] = useState('');
+  const [saving, setSaving] = useState('');
+
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    setSaving('profile');
+    setProfileMsg('');
+    try {
+      await usersAPI.updateMe({ username: profileForm.username, surname: profileForm.surname, phone: profileForm.phone });
+      setProfileMsg('Profile updated successfully.');
+    } catch (err) {
+      setProfileMsg(err.response?.data?.detail || err.message);
+    } finally {
+      setSaving('');
+    }
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    if (passwordForm.new_password !== passwordForm.confirm) {
+      setPasswordMsg('Passwords do not match.');
+      return;
+    }
+    setSaving('password');
+    setPasswordMsg('');
+    try {
+      await usersAPI.updateMe({ password: passwordForm.new_password });
+      setPasswordMsg('Password changed successfully.');
+      setPasswordForm({ new_password: '', confirm: '' });
+    } catch (err) {
+      setPasswordMsg(err.response?.data?.detail || err.message);
+    } finally {
+      setSaving('');
+    }
+  };
+
+  const handleSupportSubmit = async (e) => {
+    e.preventDefault();
+    setSaving('support');
+    setSupportMsg('');
+    try {
+      await supportAPI.submitRequest({ email: user?.email || '', subject: supportForm.subject, message: supportForm.message, category: supportForm.category });
+      setSupportMsg('Your request has been submitted. We will contact you shortly.');
+      setSupportForm({ subject: '', message: '', category: 'other' });
+    } catch (err) {
+      setSupportMsg(err.response?.data?.detail || err.message);
+    } finally {
+      setSaving('');
+    }
+  };
+
+  const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none';
+  const msgCls = (msg) => msg.includes('success') || msg.includes('submitted') ? 'text-sm text-green-700 bg-green-50 p-2 rounded' : 'text-sm text-red-600 bg-red-50 p-2 rounded';
+
+  return (
+    <div className="space-y-8 max-w-lg">
+
+      {/* Profile info */}
+      <div className="bg-gray-50 rounded-lg p-4">
+        <p className="text-sm text-gray-500">Logged in as</p>
+        <p className="font-semibold text-gray-900">{user?.username} {user?.surname}</p>
+        <p className="text-sm text-gray-600">{user?.email} · {user?.phone}</p>
+      </div>
+
+      {/* Edit profile */}
+      <div>
+        <h3 className="text-base font-semibold text-gray-900 mb-3">Edit Profile</h3>
+        <form onSubmit={handleSaveProfile} className="space-y-3">
+          {profileMsg && <p className={msgCls(profileMsg)}>{profileMsg}</p>}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">First Name</label>
+              <input type="text" value={profileForm.username} onChange={e => setProfileForm({ ...profileForm, username: e.target.value })} className={inputCls} required minLength={3} />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Last Name</label>
+              <input type="text" value={profileForm.surname} onChange={e => setProfileForm({ ...profileForm, surname: e.target.value })} className={inputCls} required minLength={3} />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Phone</label>
+            <input type="tel" value={profileForm.phone} onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })} className={inputCls} required />
+          </div>
+          <button type="submit" disabled={saving === 'profile'}
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm disabled:opacity-50">
+            {saving === 'profile' ? 'Saving...' : 'Save Profile'}
+          </button>
+        </form>
+      </div>
+
+      {/* Change password */}
+      <div>
+        <h3 className="text-base font-semibold text-gray-900 mb-3">Change Password</h3>
+        <form onSubmit={handleChangePassword} className="space-y-3">
+          {passwordMsg && <p className={msgCls(passwordMsg)}>{passwordMsg}</p>}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">New Password</label>
+            <input type="password" value={passwordForm.new_password} onChange={e => setPasswordForm({ ...passwordForm, new_password: e.target.value })} className={inputCls} required minLength={3} />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Confirm Password</label>
+            <input type="password" value={passwordForm.confirm} onChange={e => setPasswordForm({ ...passwordForm, confirm: e.target.value })} className={inputCls} required minLength={3} />
+          </div>
+          <button type="submit" disabled={saving === 'password'}
+            className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 text-sm disabled:opacity-50">
+            {saving === 'password' ? 'Changing...' : 'Change Password'}
+          </button>
+        </form>
+      </div>
+
+      {/* Support */}
+      <div>
+        <h3 className="text-base font-semibold text-gray-900 mb-3">Support</h3>
+        <form onSubmit={handleSupportSubmit} className="space-y-3">
+          {supportMsg && <p className={msgCls(supportMsg)}>{supportMsg}</p>}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Category</label>
+            <select value={supportForm.category} onChange={e => setSupportForm({ ...supportForm, category: e.target.value })} className={inputCls}>
+              {SUPPORT_CATEGORIES.map(c => <option key={c} value={c}>{c.replace('_', ' ')}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Subject</label>
+            <input type="text" value={supportForm.subject} onChange={e => setSupportForm({ ...supportForm, subject: e.target.value })} className={inputCls} required minLength={5} />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Message</label>
+            <textarea rows={4} value={supportForm.message} onChange={e => setSupportForm({ ...supportForm, message: e.target.value })} className={inputCls} required minLength={10} />
+          </div>
+          <button type="submit" disabled={saving === 'support'}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm disabled:opacity-50">
+            {saving === 'support' ? 'Sending...' : 'Send Request'}
+          </button>
+        </form>
+      </div>
+
+    </div>
+  );
+};
+
 const DriverDashboard = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
@@ -258,6 +406,25 @@ const DriverDashboard = () => {
     }
   };
 
+  const handleToggleCarActive = async (car) => {
+    try {
+      await carsAPI.update(car.id, { is_active: !car.is_active });
+      loadData();
+    } catch (err) {
+      alert(err.response?.data?.detail || err.message);
+    }
+  };
+
+  const handleDeleteCar = async (carId) => {
+    if (!window.confirm('Delete this car? This cannot be undone.')) return;
+    try {
+      await carsAPI.delete(carId);
+      loadData();
+    } catch (err) {
+      alert(err.response?.data?.detail || err.message);
+    }
+  };
+
   const handleCreateCar = async (carData) => {
     await carsAPI.create(carData);
     loadData();
@@ -294,6 +461,7 @@ const DriverDashboard = () => {
     { key: 'overview', label: 'Overview' },
     { key: 'cars', label: 'My Cars' },
     { key: 'trips', label: 'My Trips' },
+    { key: 'account', label: 'Account' },
   ];
 
   if (loading) {
@@ -412,12 +580,26 @@ const DriverDashboard = () => {
                         <h4 className="font-semibold text-gray-900">{car.model}</h4>
                         <p className="text-sm text-gray-600">Plate: {car.plate_number}</p>
                         <p className="text-sm text-gray-600">Seats: {car.total_seats}</p>
+                        <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                          car.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {car.is_active ? 'Active' : 'Inactive'}
+                        </span>
                       </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        car.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
-                      }`}>
-                        {car.is_active ? 'Active' : 'Inactive'}
-                      </span>
+                      <div className="flex gap-2">
+                        <button onClick={() => handleToggleCarActive(car)}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+                            car.is_active
+                              ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              : 'bg-green-100 text-green-700 hover:bg-green-200'
+                          }`}>
+                          {car.is_active ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <button onClick={() => handleDeleteCar(car.id)}
+                          className="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200">
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -543,6 +725,11 @@ const DriverDashboard = () => {
                 </div>
               )}
             </div>
+          )}
+
+          {/* ACCOUNT */}
+          {activeTab === 'account' && (
+            <AccountTab user={user} />
           )}
 
         </div>

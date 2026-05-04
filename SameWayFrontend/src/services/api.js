@@ -70,6 +70,19 @@ export const authAPI = {
       localStorage.removeItem('refresh_token');
     }
   },
+
+  requestPasswordReset: async (email) => {
+    const response = await api.post('/auth/password-reset-request', { email });
+    return response.data;
+  },
+
+  confirmPasswordReset: async (token, newPassword, confirmPassword) => {
+    const response = await api.post(`/auth/password-reset-confirm/${token}`, {
+      new_password: newPassword,
+      confirm_new_password: confirmPassword,
+    });
+    return response.data;
+  },
 };
 
 export const usersAPI = {

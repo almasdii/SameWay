@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { tripsAPI, bookingsAPI, routePointsAPI, paymentsAPI } from '../../services/api';
+import { tripsAPI, bookingsAPI, routePointsAPI, paymentsAPI, supportAPI, usersAPI } from '../../services/api';
 
 const PAYMENT_STATUS = {
   pending:   { label: 'Payment Pending',   cls: 'bg-yellow-100 text-yellow-800' },
@@ -155,6 +155,148 @@ const PaymentModal = ({ booking, onClose, onPaid }) => {
   );
 };
 
+const SUPPORT_CATEGORIES = ['bug', 'feature_request', 'complaint', 'other'];
+
+const PassengerAccountTab = ({ user }) => {
+  const [profileForm, setProfileForm] = useState({ username: user?.username || '', surname: user?.surname || '', phone: user?.phone || '' });
+  const [passwordForm, setPasswordForm] = useState({ new_password: '', confirm: '' });
+  const [supportForm, setSupportForm] = useState({ subject: '', message: '', category: 'other' });
+  const [profileMsg, setProfileMsg] = useState('');
+  const [passwordMsg, setPasswordMsg] = useState('');
+  const [supportMsg, setSupportMsg] = useState('');
+  const [saving, setSaving] = useState('');
+
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    setSaving('profile');
+    setProfileMsg('');
+    try {
+      await usersAPI.updateMe({ username: profileForm.username, surname: profileForm.surname, phone: profileForm.phone });
+      setProfileMsg('Profile updated successfully.');
+    } catch (err) {
+      setProfileMsg(err.response?.data?.detail || err.message);
+    } finally {
+      setSaving('');
+    }
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    if (passwordForm.new_password !== passwordForm.confirm) {
+      setPasswordMsg('Passwords do not match.');
+      return;
+    }
+    setSaving('password');
+    setPasswordMsg('');
+    try {
+      await usersAPI.updateMe({ password: passwordForm.new_password });
+      setPasswordMsg('Password changed successfully.');
+      setPasswordForm({ new_password: '', confirm: '' });
+    } catch (err) {
+      setPasswordMsg(err.response?.data?.detail || err.message);
+    } finally {
+      setSaving('');
+    }
+  };
+
+  const handleSupportSubmit = async (e) => {
+    e.preventDefault();
+    setSaving('support');
+    setSupportMsg('');
+    try {
+      await supportAPI.submitRequest({ email: user?.email || '', subject: supportForm.subject, message: supportForm.message, category: supportForm.category });
+      setSupportMsg('Your request has been submitted. We will contact you shortly.');
+      setSupportForm({ subject: '', message: '', category: 'other' });
+    } catch (err) {
+      setSupportMsg(err.response?.data?.detail || err.message);
+    } finally {
+      setSaving('');
+    }
+  };
+
+  const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none';
+  const msgCls = (msg) => msg.includes('success') || msg.includes('submitted') ? 'text-sm text-green-700 bg-green-50 p-2 rounded' : 'text-sm text-red-600 bg-red-50 p-2 rounded';
+
+  return (
+    <div className="space-y-8 max-w-lg">
+      <div className="bg-gray-50 rounded-lg p-4">
+        <p className="text-sm text-gray-500">Logged in as</p>
+        <p className="font-semibold text-gray-900">{user?.username} {user?.surname}</p>
+        <p className="text-sm text-gray-600">{user?.email} · {user?.phone}</p>
+      </div>
+
+      <div>
+        <h3 className="text-base font-semibold text-gray-900 mb-3">Edit Profile</h3>
+        <form onSubmit={handleSaveProfile} className="space-y-3">
+          {profileMsg && <p className={msgCls(profileMsg)}>{profileMsg}</p>}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">First Name</label>
+              <input type="text" value={profileForm.username} onChange={e => setProfileForm({ ...profileForm, username: e.target.value })} className={inputCls} required minLength={3} />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Last Name</label>
+              <input type="text" value={profileForm.surname} onChange={e => setProfileForm({ ...profileForm, surname: e.target.value })} className={inputCls} required minLength={3} />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Phone</label>
+            <input type="tel" value={profileForm.phone} onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })} className={inputCls} required />
+          </div>
+          <button type="submit" disabled={saving === 'profile'}
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm disabled:opacity-50">
+            {saving === 'profile' ? 'Saving...' : 'Save Profile'}
+          </button>
+        </form>
+      </div>
+
+      <div>
+        <h3 className="text-base font-semibold text-gray-900 mb-3">Change Password</h3>
+        <form onSubmit={handleChangePassword} className="space-y-3">
+          {passwordMsg && <p className={msgCls(passwordMsg)}>{passwordMsg}</p>}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">New Password</label>
+            <input type="password" value={passwordForm.new_password} onChange={e => setPasswordForm({ ...passwordForm, new_password: e.target.value })} className={inputCls} required minLength={3} />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Confirm Password</label>
+            <input type="password" value={passwordForm.confirm} onChange={e => setPasswordForm({ ...passwordForm, confirm: e.target.value })} className={inputCls} required minLength={3} />
+          </div>
+          <button type="submit" disabled={saving === 'password'}
+            className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 text-sm disabled:opacity-50">
+            {saving === 'password' ? 'Changing...' : 'Change Password'}
+          </button>
+        </form>
+      </div>
+
+      <div>
+        <h3 className="text-base font-semibold text-gray-900 mb-3">Support</h3>
+        <form onSubmit={handleSupportSubmit} className="space-y-3">
+          {supportMsg && <p className={msgCls(supportMsg)}>{supportMsg}</p>}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Category</label>
+            <select value={supportForm.category} onChange={e => setSupportForm({ ...supportForm, category: e.target.value })} className={inputCls}>
+              {SUPPORT_CATEGORIES.map(c => <option key={c} value={c}>{c.replace('_', ' ')}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Subject</label>
+            <input type="text" value={supportForm.subject} onChange={e => setSupportForm({ ...supportForm, subject: e.target.value })} className={inputCls} required minLength={5} />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Message</label>
+            <textarea rows={4} value={supportForm.message} onChange={e => setSupportForm({ ...supportForm, message: e.target.value })} className={inputCls} required minLength={10} />
+          </div>
+          <button type="submit" disabled={saving === 'support'}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm disabled:opacity-50">
+            {saving === 'support' ? 'Sending...' : 'Send Request'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 const PassengerDashboard = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('trips');
@@ -244,6 +386,7 @@ const PassengerDashboard = () => {
   const tabs = [
     { key: 'trips', label: 'Available Trips' },
     { key: 'bookings', label: 'My Bookings' },
+    { key: 'account', label: 'Account' },
   ];
 
   if (loading) {
@@ -406,7 +549,7 @@ const PassengerDashboard = () => {
                                 Pay
                               </button>
                             )}
-                            {booking.status !== 'cancelled' && (
+                            {booking.status !== 'cancelled' && trip?.status !== 'completed' && trip?.status !== 'in_progress' && (
                               <button onClick={() => handleCancelBooking(booking.id)}
                                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm">
                                 Cancel
@@ -420,6 +563,11 @@ const PassengerDashboard = () => {
                 </div>
               )}
             </div>
+          )}
+
+          {/* ACCOUNT */}
+          {activeTab === 'account' && (
+            <PassengerAccountTab user={user} />
           )}
 
         </div>
