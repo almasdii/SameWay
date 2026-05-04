@@ -44,7 +44,7 @@ async def create_trip(session: AsyncSession, current_user: User, data: TripCreat
         origin=data.origin,
         destination=data.destination,
         price_per_seat=data.price_per_seat,
-        start_time=data.start_time,
+        start_time=data.start_time.replace(tzinfo=None),
         available_seats=data.available_seats,
         status=TripStatus.planned,
     )
