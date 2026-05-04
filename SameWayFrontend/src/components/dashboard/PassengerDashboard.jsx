@@ -1,163 +1,578 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { tripsAPI, bookingsAPI } from '../../services/api';
+import { tripsAPI, bookingsAPI, routePointsAPI, paymentsAPI, supportAPI, usersAPI, reviewsAPI } from '../../services/api';
+
+const PAYMENT_STATUS = {
+  pending:   { label: 'Payment Pending',   cls: 'bg-yellow-100 text-yellow-800' },
+  completed: { label: 'Payment Confirmed', cls: 'bg-green-100 text-green-800' },
+  failed:    { label: 'Payment Failed',    cls: 'bg-red-100 text-red-800' },
+};
+
+const BookingModal = ({ trip, onClose, onConfirm }) => {
+  const [routePoints, setRoutePoints] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    routePointsAPI.getByTripId(trip.id)
+      .then(pts => setRoutePoints(pts.sort((a, b) => a.order - b.order)))
+      .catch(() => setError('Could not load route points.'))
+      .finally(() => setLoading(false));
+  }, [trip.id]);
+
+  const pickup = routePoints.find(p => p.type === 'pickup') || routePoints[0];
+  const dropoff = routePoints.find(p => p.type === 'dropoff') || routePoints[routePoints.length - 1];
+
+  const handleConfirm = async () => {
+    if (!pickup || !dropoff) { setError('Route points not found for this trip.'); return; }
+    setSubmitting(true);
+    setError('');
+    try {
+      await onConfirm({ trip_id: trip.id, pickup_route_id: pickup.id, dropoff_route_id: dropoff.id });
+      onClose();
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : JSON.stringify(detail) || err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">Confirm Booking</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+        </div>
+        <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-1">
+          <p className="font-semibold text-gray-900">{trip.origin} → {trip.destination}</p>
+          <p className="text-sm text-gray-600">Departure: {new Date(trip.start_time).toLocaleString()}</p>
+          <p className="text-sm text-gray-600">Price per seat: <span className="font-medium">${trip.price_per_seat}</span></p>
+          <p className="text-sm text-gray-600">Seats available: {trip.available_seats}</p>
+        </div>
+        {loading ? (
+          <div className="flex justify-center py-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600" />
+          </div>
+        ) : (
+          <>
+            {error && <p className="text-sm text-red-600 bg-red-50 p-2 rounded mb-3">{error}</p>}
+            {pickup && dropoff ? (
+              <div className="space-y-2 mb-4">
+                <div className="flex items-center space-x-3 bg-green-50 rounded-lg p-3">
+                  <span className="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-xs font-bold">P</span>
+                  <div>
+                    <p className="text-xs text-gray-500">Pickup</p>
+                    <p className="text-sm font-medium text-gray-900">{pickup.location}</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-3 bg-red-50 rounded-lg p-3">
+                  <span className="w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold">D</span>
+                  <div>
+                    <p className="text-xs text-gray-500">Dropoff</p>
+                    <p className="text-sm font-medium text-gray-900">{dropoff.location}</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-yellow-700 bg-yellow-50 p-3 rounded mb-4">No route points found for this trip.</p>
+            )}
+          </>
+        )}
+        <div className="flex justify-end space-x-3">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+          <button onClick={handleConfirm} disabled={submitting || loading || !pickup || !dropoff}
+            className="px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50">
+            {submitting ? 'Booking...' : 'Confirm Booking'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const PaymentModal = ({ booking, onClose, onPaid }) => {
+  const [amount, setAmount] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    tripsAPI.getById(booking.trip_id)
+      .then(trip => setAmount(String(trip.price_per_seat)))
+      .catch(() => setError('Could not load trip price.'))
+      .finally(() => setLoading(false));
+  }, [booking.trip_id]);
+
+  const handlePay = async () => {
+    setSubmitting(true);
+    setError('');
+    try {
+      await paymentsAPI.create({ booking_id: booking.id, amount: parseFloat(amount) });
+      onPaid();
+      onClose();
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : JSON.stringify(detail) || err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">Pay for Booking #{booking.id}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+        </div>
+        {loading ? (
+          <div className="flex justify-center py-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600" />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {error && <p className="text-sm text-red-600 bg-red-50 p-2 rounded">{error}</p>}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
+              <input type="number" min="0.01" step="0.01"
+                value={amount} onChange={e => setAmount(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none" />
+            </div>
+            <div className="flex justify-end space-x-3">
+              <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+              <button onClick={handlePay} disabled={submitting || !amount}
+                className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
+                {submitting ? 'Processing...' : `Pay $${amount}`}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const StarRating = ({ value, onChange }) => (
+  <div className="flex gap-1">
+    {[1, 2, 3, 4, 5].map(star => (
+      <button key={star} type="button" onClick={() => onChange && onChange(star)}
+        className={`text-3xl transition-colors leading-none ${star <= value ? 'text-yellow-400' : 'text-gray-300'} ${onChange ? 'hover:text-yellow-400 cursor-pointer' : 'cursor-default'}`}>
+        ★
+      </button>
+    ))}
+  </div>
+);
+
+const ReviewDriverModal = ({ booking, trip, onClose, onSubmitted }) => {
+  const [rate, setRate] = useState(5);
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    try {
+      await reviewsAPI.create({ trip_id: trip.id, reviewee_id: trip.driver_id, rate, message });
+      onSubmitted(booking.trip_id);
+      onClose();
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : JSON.stringify(detail) || err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">
+            Rate {trip?.driver_username || 'Driver'}
+          </h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && <p className="text-sm text-red-600 bg-red-50 p-2 rounded">{error}</p>}
+          <div>
+            <p className="text-sm text-gray-600 mb-2">Trip: {trip?.origin} → {trip?.destination}</p>
+            <StarRating value={rate} onChange={setRate} />
+            <p className="text-xs text-gray-400 mt-1">{rate} / 5</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Your review</label>
+            <textarea rows={3} value={message} onChange={e => setMessage(e.target.value)}
+              placeholder="Share your experience with this driver..."
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none resize-none"
+              required minLength={1} />
+          </div>
+          <div className="flex justify-end space-x-3">
+            <button type="button" onClick={onClose}
+              className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">
+              Cancel
+            </button>
+            <button type="submit" disabled={loading}
+              className="px-4 py-2 text-sm bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 disabled:opacity-50">
+              {loading ? 'Submitting...' : 'Submit Review'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const SUPPORT_CATEGORIES = ['bug', 'feature_request', 'complaint', 'other'];
+
+const PassengerAccountTab = ({ user }) => {
+  const [profileForm, setProfileForm] = useState({ username: user?.username || '', surname: user?.surname || '', phone: user?.phone || '' });
+  const [passwordForm, setPasswordForm] = useState({ new_password: '', confirm: '' });
+  const [supportForm, setSupportForm] = useState({ subject: '', message: '', category: 'other' });
+  const [profileMsg, setProfileMsg] = useState('');
+  const [passwordMsg, setPasswordMsg] = useState('');
+  const [supportMsg, setSupportMsg] = useState('');
+  const [saving, setSaving] = useState('');
+
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    setSaving('profile');
+    setProfileMsg('');
+    try {
+      await usersAPI.updateMe({ username: profileForm.username, surname: profileForm.surname, phone: profileForm.phone });
+      setProfileMsg('Profile updated successfully.');
+    } catch (err) {
+      setProfileMsg(err.response?.data?.detail || err.message);
+    } finally {
+      setSaving('');
+    }
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    if (passwordForm.new_password !== passwordForm.confirm) {
+      setPasswordMsg('Passwords do not match.');
+      return;
+    }
+    setSaving('password');
+    setPasswordMsg('');
+    try {
+      await usersAPI.updateMe({ password: passwordForm.new_password });
+      setPasswordMsg('Password changed successfully.');
+      setPasswordForm({ new_password: '', confirm: '' });
+    } catch (err) {
+      setPasswordMsg(err.response?.data?.detail || err.message);
+    } finally {
+      setSaving('');
+    }
+  };
+
+  const handleSupportSubmit = async (e) => {
+    e.preventDefault();
+    setSaving('support');
+    setSupportMsg('');
+    try {
+      await supportAPI.submitRequest({ email: user?.email || '', subject: supportForm.subject, message: supportForm.message, category: supportForm.category });
+      setSupportMsg('Your request has been submitted. We will contact you shortly.');
+      setSupportForm({ subject: '', message: '', category: 'other' });
+    } catch (err) {
+      setSupportMsg(err.response?.data?.detail || err.message);
+    } finally {
+      setSaving('');
+    }
+  };
+
+  const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none';
+  const msgCls = (msg) => msg.includes('success') || msg.includes('submitted') ? 'text-sm text-green-700 bg-green-50 p-2 rounded' : 'text-sm text-red-600 bg-red-50 p-2 rounded';
+
+  return (
+    <div className="space-y-8 max-w-lg">
+      <div className="bg-gray-50 rounded-lg p-4">
+        <p className="text-sm text-gray-500">Logged in as</p>
+        <p className="font-semibold text-gray-900">{user?.username} {user?.surname}</p>
+        <p className="text-sm text-gray-600">{user?.email} · {user?.phone}</p>
+      </div>
+
+      <div>
+        <h3 className="text-base font-semibold text-gray-900 mb-3">Edit Profile</h3>
+        <form onSubmit={handleSaveProfile} className="space-y-3">
+          {profileMsg && <p className={msgCls(profileMsg)}>{profileMsg}</p>}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">First Name</label>
+              <input type="text" value={profileForm.username} onChange={e => setProfileForm({ ...profileForm, username: e.target.value })} className={inputCls} required minLength={3} />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Last Name</label>
+              <input type="text" value={profileForm.surname} onChange={e => setProfileForm({ ...profileForm, surname: e.target.value })} className={inputCls} required minLength={3} />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Phone</label>
+            <input type="tel" value={profileForm.phone} onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })} className={inputCls} required />
+          </div>
+          <button type="submit" disabled={saving === 'profile'}
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm disabled:opacity-50">
+            {saving === 'profile' ? 'Saving...' : 'Save Profile'}
+          </button>
+        </form>
+      </div>
+
+      <div>
+        <h3 className="text-base font-semibold text-gray-900 mb-3">Change Password</h3>
+        <form onSubmit={handleChangePassword} className="space-y-3">
+          {passwordMsg && <p className={msgCls(passwordMsg)}>{passwordMsg}</p>}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">New Password</label>
+            <input type="password" value={passwordForm.new_password} onChange={e => setPasswordForm({ ...passwordForm, new_password: e.target.value })} className={inputCls} required minLength={3} />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Confirm Password</label>
+            <input type="password" value={passwordForm.confirm} onChange={e => setPasswordForm({ ...passwordForm, confirm: e.target.value })} className={inputCls} required minLength={3} />
+          </div>
+          <button type="submit" disabled={saving === 'password'}
+            className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 text-sm disabled:opacity-50">
+            {saving === 'password' ? 'Changing...' : 'Change Password'}
+          </button>
+        </form>
+      </div>
+
+      <div>
+        <h3 className="text-base font-semibold text-gray-900 mb-3">Support</h3>
+        <form onSubmit={handleSupportSubmit} className="space-y-3">
+          {supportMsg && <p className={msgCls(supportMsg)}>{supportMsg}</p>}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Category</label>
+            <select value={supportForm.category} onChange={e => setSupportForm({ ...supportForm, category: e.target.value })} className={inputCls}>
+              {SUPPORT_CATEGORIES.map(c => <option key={c} value={c}>{c.replace('_', ' ')}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Subject</label>
+            <input type="text" value={supportForm.subject} onChange={e => setSupportForm({ ...supportForm, subject: e.target.value })} className={inputCls} required minLength={5} />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Message</label>
+            <textarea rows={4} value={supportForm.message} onChange={e => setSupportForm({ ...supportForm, message: e.target.value })} className={inputCls} required minLength={10} />
+          </div>
+          <button type="submit" disabled={saving === 'support'}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm disabled:opacity-50">
+            {saving === 'support' ? 'Sending...' : 'Send Request'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
 
 const PassengerDashboard = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('trips');
-  const [data, setData] = useState({
-    availableTrips: [],
-    myBookings: [],
-    loading: true,
-    error: null,
-  });
+  const [availableTrips, setAvailableTrips] = useState([]);
+  const [myBookings, setMyBookings] = useState([]);
+  const [bookingPayments, setBookingPayments] = useState({});
+  const [bookingTrips, setBookingTrips] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [bookingModal, setBookingModal] = useState(null);
+  const [paymentModal, setPaymentModal] = useState(null);
+  const [reviewModal, setReviewModal] = useState(null);
+  const [reviewedTrips, setReviewedTrips] = useState(new Set());
+  const [myReviews, setMyReviews] = useState([]);
+  const [searchQuery, setSearchQuery] = useState({ from: '', to: '' });
+  const [searching, setSearching] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, [activeTab]);
+  useEffect(() => { loadData(); }, [activeTab]);
 
   const loadData = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      setData(prev => ({ ...prev, loading: true, error: null }));
-      
       if (activeTab === 'trips') {
         const trips = await tripsAPI.getAvailable();
-        setData(prev => ({ ...prev, availableTrips: trips, loading: false }));
+        setAvailableTrips(trips);
       } else if (activeTab === 'bookings') {
         const bookings = await bookingsAPI.getMyBookings();
-        setData(prev => ({ ...prev, myBookings: bookings, loading: false }));
+        setMyBookings(bookings);
+        const paymentMap = {};
+        const tripMap = {};
+        await Promise.all(bookings.map(async b => {
+          try {
+            const payments = await paymentsAPI.getByBookingId(b.id);
+            paymentMap[b.id] = payments.length > 0 ? payments[payments.length - 1] : null;
+          } catch {
+            paymentMap[b.id] = null;
+          }
+          try {
+            tripMap[b.trip_id] = await tripsAPI.getById(b.trip_id);
+          } catch {
+            tripMap[b.trip_id] = null;
+          }
+        }));
+        setBookingPayments(paymentMap);
+        setBookingTrips(tripMap);
+      } else if (activeTab === 'reviews') {
+        const reviews = await reviewsAPI.getByUserId(user.uid).catch(() => []);
+        setMyReviews(Array.isArray(reviews) ? reviews : []);
       }
-    } catch (error) {
-      setData(prev => ({ 
-        ...prev, 
-        loading: false, 
-        error: error.message || 'Failed to load data' 
-      }));
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message || 'Failed to load data');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleBooking = async (tripId) => {
-  try {
-    const pickupId = prompt('Enter Pickup Route ID:');
-    const dropoffId = prompt('Enter Dropoff Route ID:');
+  const handleSearch = async (e) => {
+    e.preventDefault();
+    if (!searchQuery.from || !searchQuery.to) return;
+    setSearching(true);
+    setError(null);
+    try {
+      const trips = await tripsAPI.search({ from: searchQuery.from, to: searchQuery.to });
+      setAvailableTrips(trips);
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message);
+    } finally {
+      setSearching(false);
+    }
+  };
 
-    if (!pickupId || !dropoffId) return;
+  const handleClearSearch = async () => {
+    setSearchQuery({ from: '', to: '' });
+    const trips = await tripsAPI.getAvailable().catch(() => []);
+    setAvailableTrips(trips);
+  };
 
-    await bookingsAPI.create({
-      trip_id: tripId,
-      pickup_route_id: parseInt(pickupId),
-      dropoff_route_id: parseInt(dropoffId),
-    });
-    
-    alert('Booking created successfully!');
+  const handleConfirmBooking = async (bookingData) => {
+    await bookingsAPI.create(bookingData);
     loadData();
-  } catch (error) {
-    alert('Failed to create booking: ' + (error.response?.data?.detail?.[0]?.msg || error.message));
-  }
-};
+  };
 
   const handleCancelBooking = async (bookingId) => {
     try {
       await bookingsAPI.cancel(bookingId);
       loadData();
-      alert('Booking cancelled successfully!');
-    } catch (error) {
-      alert('Failed to cancel booking: ' + (error.response?.data?.detail || error.message));
+    } catch (err) {
+      alert(err.response?.data?.detail || err.message);
     }
   };
 
-  if (data.loading) {
+  const tabs = [
+    { key: 'trips', label: 'Available Trips' },
+    { key: 'bookings', label: 'My Bookings' },
+    { key: 'reviews', label: 'Reviews' },
+    { key: 'account', label: 'Account' },
+  ];
+
+  if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600" />
       </div>
     );
   }
 
-  if (data.error) {
+  if (error) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <p className="text-red-600">{data.error}</p>
-        <button 
-          onClick={loadData}
-          className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-        >
-          Retry
-        </button>
+        <p className="text-red-600">{error}</p>
+        <button onClick={loadData} className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Retry</button>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      
+      {bookingModal && (
+        <BookingModal trip={bookingModal} onClose={() => setBookingModal(null)} onConfirm={handleConfirmBooking} />
+      )}
+      {paymentModal && (
+        <PaymentModal booking={paymentModal} onClose={() => setPaymentModal(null)} onPaid={loadData} />
+      )}
+      {reviewModal && (
+        <ReviewDriverModal
+          booking={reviewModal.booking}
+          trip={reviewModal.trip}
+          onClose={() => setReviewModal(null)}
+          onSubmitted={(tripId) => setReviewedTrips(prev => new Set([...prev, tripId]))}
+        />
+      )}
+
       <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-        <h2 className="text-2xl font-bold text-gray-900">
-          Welcome back, {user?.username}!
-        </h2>
-        <p className="text-gray-600 mt-1">Manage your trips and bookings</p>
+        <h2 className="text-2xl font-bold text-gray-900">Welcome, {user?.username}!</h2>
+        <p className="text-gray-600 mt-1">Find and book your next ride</p>
       </div>
 
-      
       <div className="bg-white rounded-lg shadow-sm border border-gray-100">
         <div className="border-b border-gray-200">
           <nav className="flex space-x-8 px-6">
-            <button
-              onClick={() => setActiveTab('trips')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'trips'
-                  ? 'border-purple-600 text-purple-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Available Trips
-            </button>
-            <button
-              onClick={() => setActiveTab('bookings')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'bookings'
-                  ? 'border-purple-600 text-purple-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              My Bookings
-            </button>
+            {tabs.map(t => (
+              <button key={t.key} onClick={() => setActiveTab(t.key)}
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === t.key ? 'border-purple-600 text-purple-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}>
+                {t.label}
+              </button>
+            ))}
           </nav>
         </div>
 
         <div className="p-6">
+
+          {/* AVAILABLE TRIPS */}
           {activeTab === 'trips' && (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">Available Trips</h3>
-              {data.availableTrips.length === 0 ? (
-                <p className="text-gray-500">No available trips at the moment.</p>
+              <form onSubmit={handleSearch} className="flex gap-3 items-end">
+                <div className="flex-1">
+                  <label className="block text-xs text-gray-500 mb-1">From</label>
+                  <input type="text" placeholder="Almaty" value={searchQuery.from}
+                    onChange={e => setSearchQuery({ ...searchQuery, from: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none" />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs text-gray-500 mb-1">To</label>
+                  <input type="text" placeholder="Astana" value={searchQuery.to}
+                    onChange={e => setSearchQuery({ ...searchQuery, to: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none" />
+                </div>
+                <button type="submit" disabled={searching}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm disabled:opacity-50">
+                  {searching ? '...' : 'Search'}
+                </button>
+                <button type="button" onClick={handleClearSearch}
+                  className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">
+                  All
+                </button>
+              </form>
+
+              {availableTrips.length === 0 ? (
+                <div className="text-center py-12 text-gray-500"><p>No available trips found.</p></div>
               ) : (
                 <div className="grid gap-4">
-                  {data.availableTrips.map((trip) => (
-                    <div key={trip.id} className="border border-gray-200 rounded-lg p-4">
+                  {availableTrips.map(trip => (
+                    <div key={trip.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
-                          <h4 className="font-semibold text-gray-900">
-                            {trip.origin} → {trip.destination}
-                          </h4>
-                          <p className="text-sm text-gray-600 mt-1">
-                            Driver: {trip.driver_username}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            Available seats: {trip.available_seats}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            Price per seat: ${trip.price_per_seat}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            Departure: {new Date(trip.start_time).toLocaleString()}
-                          </p>
+                          <h4 className="font-semibold text-gray-900 text-lg">{trip.origin} → {trip.destination}</h4>
+                          <p className="text-sm text-gray-600 mt-1">Departure: {new Date(trip.start_time).toLocaleString()}</p>
+                          <p className="text-sm text-gray-600">Available seats: <span className="font-medium">{trip.available_seats}</span></p>
+                          <p className="text-sm text-gray-600">Price: <span className="font-semibold text-purple-700">${trip.price_per_seat}</span></p>
+                          {trip.driver_username && (
+                            <p className="text-sm text-gray-600 mt-1">
+                              Driver: <span className="font-medium">{trip.driver_username}</span>
+                              {trip.driver_rating > 0 && (
+                                <span className="ml-2 text-yellow-600 font-medium">★ {trip.driver_rating.toFixed(1)}</span>
+                              )}
+                            </p>
+                          )}
                         </div>
-                        <button
-                          onClick={() => handleBooking(trip.id, trip.pickup_route_id, trip.dropoff_route_id)}
-                          className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
-                        >
-                          Book Now
+                        <button onClick={() => setBookingModal(trip)} disabled={trip.available_seats === 0}
+                          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed ml-4">
+                          {trip.available_seats === 0 ? 'Full' : 'Book Now'}
                         </button>
                       </div>
                     </div>
@@ -167,42 +582,133 @@ const PassengerDashboard = () => {
             </div>
           )}
 
+          {/* MY BOOKINGS */}
           {activeTab === 'bookings' && (
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-gray-900">My Bookings</h3>
-              {data.myBookings.length === 0 ? (
-                <p className="text-gray-500">You haven't made any bookings yet.</p>
+              {myBookings.length === 0 ? (
+                <div className="text-center py-12 text-gray-500"><p>You have no bookings yet.</p></div>
               ) : (
                 <div className="grid gap-4">
-                  {data.myBookings.map((booking) => (
-                    <div key={booking.id} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-gray-900">
-                            Trip {booking.trip_id}
-                          </h4>
-                          <p className="text-sm text-gray-600 mt-1">
-                            Status: <span className={`px-2 py-1 rounded text-xs ${
-                              booking.status === 'confirmed' ? 'bg-green-100 text-green-800' :
-                              booking.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                              booking.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {booking.status}
-                            </span>
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            Booked on: {new Date(booking.created_at).toLocaleString()}
-                          </p>
+                  {myBookings.map(booking => {
+                    const payment = bookingPayments[booking.id];
+                    const trip = bookingTrips[booking.trip_id];
+                    const ps = payment ? PAYMENT_STATUS[payment.status] : null;
+                    const canPay = booking.status === 'confirmed' && (!payment || payment.status === 'failed');
+
+                    return (
+                      <div key={booking.id} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h4 className="font-semibold text-gray-900">Booking #{booking.id}</h4>
+                              <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                booking.status === 'confirmed' ? 'bg-green-100 text-green-800' :
+                                booking.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                                'bg-gray-100 text-gray-600'
+                              }`}>{booking.status}</span>
+                              {ps && (
+                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${ps.cls}`}>{ps.label}</span>
+                              )}
+                            </div>
+
+                            {trip ? (
+                              <div className="space-y-1 mt-1">
+                                <p className="text-base font-medium text-gray-800">{trip.origin} → {trip.destination}</p>
+                                <p className="text-sm text-gray-600">Departure: {new Date(trip.start_time).toLocaleString()}</p>
+                                <p className="text-sm text-gray-600">Price: <span className="font-semibold text-purple-700">${trip.price_per_seat}</span> per seat</p>
+                                {trip.driver_username && (
+                                  <p className="text-sm text-gray-600">Driver: <span className="font-medium">{trip.driver_username}</span>
+                                    {trip.driver_phone && <span className="text-gray-500"> · {trip.driver_phone}</span>}
+                                    {trip.driver_rating > 0 && (
+                                      <span className="ml-2 text-yellow-600 font-medium">★ {trip.driver_rating.toFixed(1)}</span>
+                                    )}
+                                  </p>
+                                )}
+                                {trip.car_model && (
+                                  <p className="text-sm text-gray-600">Car: <span className="font-medium">{trip.car_model}</span>
+                                    {trip.car_plate && <span className="text-gray-500"> · {trip.car_plate}</span>}
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-gray-500 mt-1">Trip ID: {booking.trip_id}</p>
+                            )}
+
+                            {payment && (
+                              <p className="text-xs text-gray-500 mt-2">Payment: ${payment.amount}</p>
+                            )}
+                            <p className="text-xs text-gray-400 mt-1">Booked: {new Date(booking.created_at).toLocaleString()}</p>
+                          </div>
+                          <div className="flex flex-col space-y-2 ml-4">
+                            {canPay && (
+                              <button onClick={() => setPaymentModal(booking)}
+                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
+                                Pay
+                              </button>
+                            )}
+                            {trip?.status === 'completed' && booking.status !== 'cancelled' && !reviewedTrips.has(booking.trip_id) && (
+                              <button onClick={() => setReviewModal({ booking, trip })}
+                                className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 text-sm">
+                                Rate Driver
+                              </button>
+                            )}
+                            {trip?.status === 'completed' && reviewedTrips.has(booking.trip_id) && (
+                              <span className="px-3 py-1.5 bg-yellow-50 text-yellow-700 rounded-lg text-sm text-center">
+                                ★ Reviewed
+                              </span>
+                            )}
+                            {booking.status !== 'cancelled' && trip?.status !== 'completed' && trip?.status !== 'in_progress' && (
+                              <button onClick={() => handleCancelBooking(booking.id)}
+                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm">
+                                Cancel
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        {booking.status !== 'cancelled' && (
-                          <button
-                            onClick={() => handleCancelBooking(booking.id)}
-                            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-                          >
-                            Cancel
-                          </button>
-                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* REVIEWS */}
+          {activeTab === 'reviews' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">Reviews About Me</h3>
+                {myReviews.length > 0 && (
+                  <div className="flex items-center gap-2 bg-yellow-50 px-3 py-1.5 rounded-lg">
+                    <StarRating value={Math.round(myReviews.reduce((s, r) => s + r.rate, 0) / myReviews.length)} onChange={null} />
+                    <span className="text-sm font-semibold text-yellow-700">
+                      {(myReviews.reduce((s, r) => s + r.rate, 0) / myReviews.length).toFixed(1)}
+                    </span>
+                    <span className="text-sm text-gray-500">({myReviews.length} review{myReviews.length !== 1 ? 's' : ''})</span>
+                  </div>
+                )}
+              </div>
+              {myReviews.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <p className="text-4xl mb-3">★</p>
+                  <p>No reviews yet. Complete trips to receive ratings from drivers.</p>
+                </div>
+              ) : (
+                <div className="grid gap-3">
+                  {myReviews.map(review => (
+                    <div key={review.id} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <StarRating value={review.rate} onChange={null} />
+                          <p className="text-sm text-gray-800 mt-2">{review.message}</p>
+                        </div>
+                        <div className="text-right ml-4">
+                          <span className="text-xs text-gray-400">
+                            {new Date(review.created_at).toLocaleDateString()}
+                          </span>
+                          <p className="text-xs text-gray-500 mt-1">Trip #{review.trip_id}</p>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -210,6 +716,12 @@ const PassengerDashboard = () => {
               )}
             </div>
           )}
+
+          {/* ACCOUNT */}
+          {activeTab === 'account' && (
+            <PassengerAccountTab user={user} />
+          )}
+
         </div>
       </div>
     </div>

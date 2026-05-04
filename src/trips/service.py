@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -32,7 +32,7 @@ async def create_trip(session: AsyncSession, current_user: User, data: TripCreat
     if data.available_seats > driver_car.total_seats:
         raise InvalidTripSeatsException()
 
-    if data.start_time <= datetime.utcnow():
+    if data.start_time <= datetime.now(timezone.utc):
         raise TripAlreadyStartedException()
 
     if data.origin.lower() == data.destination.lower():
@@ -44,7 +44,7 @@ async def create_trip(session: AsyncSession, current_user: User, data: TripCreat
         origin=data.origin,
         destination=data.destination,
         price_per_seat=data.price_per_seat,
-        start_time=data.start_time,
+        start_time=data.start_time.replace(tzinfo=None),
         available_seats=data.available_seats,
         status=TripStatus.planned,
     )

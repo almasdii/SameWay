@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
@@ -31,10 +31,10 @@ async def add_route_point(
     if trip.driver_id != current_user.uid:
         raise DriverTripOwnershipException()
 
-    if trip.start_time <= datetime.utcnow():
+    if trip.start_time <= datetime.now(timezone.utc).replace(tzinfo=None):
         raise TripAlreadyStartedException()
 
-    if data.time < trip.start_time:
+    if data.time.replace(tzinfo=None) < trip.start_time:
         raise InvalidRoutePointTimeException()
 
     stmt = select(RoutePoint).where(
@@ -51,7 +51,7 @@ async def add_route_point(
     rp = RoutePoint(
         trip_id=trip_id,
         location=data.location,
-        time=data.time,
+        time=data.time.replace(tzinfo=None),
         order=data.order,
         type=data.type,
     )
@@ -105,7 +105,7 @@ async def update_route_point(
     if trip.driver_id != current_user.uid:
         raise DriverTripOwnershipException()
 
-    if trip.start_time <= datetime.utcnow():
+    if trip.start_time <= datetime.now(timezone.utc).replace(tzinfo=None):
         raise TripAlreadyStartedException()
 
     payload = data.model_dump(exclude_unset=True)
@@ -154,7 +154,7 @@ async def delete_route_point(
     if trip.driver_id != current_user.uid:
         raise DriverTripOwnershipException()
 
-    if trip.start_time <= datetime.utcnow():
+    if trip.start_time <= datetime.now(timezone.utc).replace(tzinfo=None):
         raise TripAlreadyStartedException()
 
     await session.delete(rp)

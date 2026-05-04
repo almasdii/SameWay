@@ -10,7 +10,7 @@ from src.db.models import (
     User,
 )
 
-from src.booking.schema import BookingCreate
+from src.booking.schema import BookingCreate, BookingRead
 
 from src.errors.customErrors import (
     TripNotFoundException,
@@ -128,10 +128,27 @@ async def list_trip_bookings(
         raise BookingOwnershipException()
 
     res = await session.execute(
-        select(Booking).where(Booking.trip_id == trip_id)
+        select(Booking, User.username, User.phone, User.average_rating)
+        .join(User, User.uid == Booking.passenger_id)
+        .where(Booking.trip_id == trip_id)
     )
 
-    return res.scalars().all()
+    rows = res.all()
+    result = []
+    for booking, username, phone, rating in rows:
+        result.append(BookingRead(
+            id=booking.id,
+            trip_id=booking.trip_id,
+            pickup_route_id=booking.pickup_route_id,
+            dropoff_route_id=booking.dropoff_route_id,
+            passenger_id=booking.passenger_id,
+            passenger_username=username,
+            passenger_phone=phone,
+            passenger_rating=rating,
+            status=booking.status,
+            created_at=booking.created_at,
+        ))
+    return result
 
 async def cancel_booking(
     session: AsyncSession,
