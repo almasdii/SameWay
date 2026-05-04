@@ -35,6 +35,21 @@ async def create(
     return await create_trip(session, current_user, data)
 
 
+@router.get(
+    "/me",
+    response_model=list[TripRead],
+    dependencies=[Depends(access_token), Depends(allow_driver)],
+)
+async def my_trips(
+    session: AsyncSessionDep,
+    current_user: User = Depends(get_current_user),
+):
+    from sqlmodel import select as _sel
+    stmt = _sel(Trip).where(Trip.driver_id == current_user.uid).order_by(Trip.created_at.desc())
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
+
+
 @router.get("/available", response_model=list[TripRead])
 async def available(
     session: AsyncSessionDep,

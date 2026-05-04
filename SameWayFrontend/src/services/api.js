@@ -20,19 +20,20 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 401) {
+    const originalRequest = error.config;
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
       const refreshToken = localStorage.getItem('refresh_token');
       if (refreshToken) {
         try {
-          const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
-            refresh_token: refreshToken,
+          const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {}, {
+            headers: { Authorization: `Bearer ${refreshToken}` },
           });
           const { access_token } = response.data;
           localStorage.setItem('access_token', access_token);
-          
-          error.config.headers.Authorization = `Bearer ${access_token}`;
-          return api.request(error.config);
-        } catch (refreshError) {
+          originalRequest.headers.Authorization = `Bearer ${access_token}`;
+          return api.request(originalRequest);
+        } catch {
           localStorage.removeItem('access_token');
           localStorage.removeItem('refresh_token');
           window.location.href = '/login';
@@ -69,11 +70,6 @@ export const authAPI = {
       localStorage.removeItem('refresh_token');
     }
   },
-
-  refreshToken: async (refreshToken) => {
-    const response = await api.post('/auth/refresh', { refresh_token: refreshToken });
-    return response.data;
-  },
 };
 
 export const usersAPI = {
@@ -81,10 +77,6 @@ export const usersAPI = {
     const response = await api.get('/users/me');
     return response.data;
   },
-    getDriverDashboard: async () => {
-          const response = await api.get('/users/me/driver-dashboard');
-          return response.data;
-        },
 
   updateMe: async (userData) => {
     const response = await api.patch('/users/me', userData);
@@ -102,7 +94,7 @@ export const usersAPI = {
   },
 
   searchUsers: async (query) => {
-    const response = await api.get('/users/search', { params: { q: query } });
+    const response = await api.get('/users/search', { params: { fullname: query } });
     return response.data;
   },
 
@@ -167,6 +159,11 @@ export const tripsAPI = {
 
   getAvailable: async () => {
     const response = await api.get('/trips/available');
+    return response.data;
+  },
+
+  getMine: async () => {
+    const response = await api.get('/trips/me');
     return response.data;
   },
 
