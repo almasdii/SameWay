@@ -6,6 +6,8 @@ redis_client = redis.from_url(
     decode_responses=True
 )
 
+
+
 JTI_EXPIRY = 3600
 
 
